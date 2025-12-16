@@ -1,0 +1,18 @@
+# Ignore everything EXCEPT backend/ and SeasonalCollectorGame/
+*
+
+# But include these folders
+!backend/
+!SeasonalCollectorGame/
+!RENDER_DEPLOYMENT_GUIDE.md
+!.gitignore
+
+# Ignore common files inside backend
+backend/venv/
+backend/__pycache__/
+backend/*.db
+backend/.env
+backend/*.pyc
+
+# Ignore common files inside SeasonalCollectorGame (if any)
+SeasonalCollectorGame/.git/

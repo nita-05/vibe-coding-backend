@@ -1,0 +1,55 @@
+═══════════════════════════════════════════════════════════════
+  DATABASE_URL Configuration Guide
+═══════════════════════════════════════════════════════════════
+
+WHAT IS DATABASE_URL?
+──────────────────────
+It tells the application where to store your database file.
+
+CURRENT VALUE IN .env:
+──────────────────────
+DATABASE_URL=sqlite:///./vibe_coding.db
+
+WHAT THIS MEANS:
+────────────────
+┌─────────────────────────────────────────────────────────┐
+│ sqlite:///  →  SQLite database type                     │
+│ ./          →  Current directory (backend folder)        │
+│ vibe_coding.db → Database filename                      │
+└─────────────────────────────────────────────────────────┘
+
+WHERE THE FILE WILL BE CREATED:
+───────────────────────────────
+vibe/
+└── backend/
+    └── vibe_coding.db  ← This file (created automatically)
+
+YOU DON'T NEED TO CHANGE IT!
+─────────────────────────────
+✅ The default value works perfectly
+✅ Database is created automatically when you start the server
+✅ File will appear in: backend/vibe_coding.db
+
+ALTERNATIVE OPTIONS (if needed):
+─────────────────────────────────
+
+Option 1: Absolute Path (Windows)
+  DATABASE_URL=sqlite:///C:/Users/nitab/Documents/vibe_coding.db
+  (Use forward slashes / even on Windows!)
+
+Option 2: Different Filename
+  DATABASE_URL=sqlite:///./my_database.db
+
+Option 3: Different Folder
+  DATABASE_URL=sqlite:///./data/vibe_coding.db
+
+RECOMMENDED .env SETTING:
+─────────────────────────
+Just use the default - it's perfect for your setup:
+
+  DATABASE_URL=sqlite:///./vibe_coding.db
+
+═══════════════════════════════════════════════════════════════
+  That's it! No changes needed! ✅
+═══════════════════════════════════════════════════════════════
+
