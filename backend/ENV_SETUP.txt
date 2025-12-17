@@ -8,8 +8,8 @@ LOCATION: backend/.env
 COPY THIS CONTENT:
 ─────────────────────────────────────────────────────────────
 
-OPENAI_API_KEY=sk-your-openai-key-here
-OPENAI_MODEL=gpt-4
+OPENAI_API_KEY=YOUR_OPENAI_KEY_HERE
+OPENAI_MODEL=gpt-4o-mini
 ROBLOX_API_KEY=
 DATABASE_URL=sqlite:///./vibe_coding.db
 CORS_ORIGINS=http://localhost:5173
@@ -20,7 +20,7 @@ PORT=8000
 REQUIRED:
 ─────────
 ✅ OPENAI_API_KEY - Get from https://platform.openai.com/api-keys
-   Replace: sk-your-openai-key-here with your actual key
+   Replace: YOUR_OPENAI_KEY_HERE with your actual key
 
 OPTIONAL:
 ─────────
@@ -34,8 +34,8 @@ OPTIONAL:
 
 EXAMPLE:
 ────────
-OPENAI_API_KEY=sk-proj-abc123xyz789...
-OPENAI_MODEL=gpt-4
+OPENAI_API_KEY=YOUR_OPENAI_KEY_HERE
+OPENAI_MODEL=gpt-4o-mini
 ROBLOX_API_KEY=
 DATABASE_URL=sqlite:///./vibe_coding.db
 CORS_ORIGINS=http://localhost:5173

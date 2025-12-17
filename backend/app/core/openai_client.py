@@ -3,12 +3,20 @@ from app.config import settings
 from typing import Dict, Any, List
 import json
 import re
+import time
+import hashlib
 
 
 class OpenAIClient:
     def __init__(self):
-        self.client = OpenAI(api_key=settings.openai_api_key)
+        # Keep requests snappy (Roblox players feel latency immediately)
+        self.client = OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=18.0,
+            max_retries=1,
+        )
         self.model = settings.openai_model
+        self._chat_cache = {}  # key -> (expires_at, message)
 
     def generate_roblox_script(
         self,
@@ -772,6 +780,22 @@ NO incomplete code. NO placeholders. NO non-functional features. EVERYTHING must
             AI-generated response message
         """
         try:
+            # Small TTL cache for repeated questions (reduces cost + latency)
+            cache_key_src = {
+                "model": self.model,
+                "system": system_prompt or "",
+                "messages": messages[-3:],  # enough for short context
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+            key = hashlib.sha256(json.dumps(cache_key_src, sort_keys=True).encode("utf-8")).hexdigest()
+            now = time.time()
+            cached = self._chat_cache.get(key)
+            if cached:
+                exp, msg = cached
+                if now < exp and isinstance(msg, str) and msg:
+                    return msg
+
             # Build message list
             message_list = []
             
@@ -806,7 +830,10 @@ NO incomplete code. NO placeholders. NO non-functional features. EVERYTHING must
             )
             
             # Extract response text
-            return response.choices[0].message.content.strip()
+            out = response.choices[0].message.content.strip()
+            if out:
+                self._chat_cache[key] = (now + 20.0, out)
+            return out
             
         except Exception as e:
             raise Exception(f"OpenAI chat completion failed: {str(e)}")

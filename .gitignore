@@ -7,6 +7,9 @@
 !RENDER_DEPLOYMENT_GUIDE.md
 !.gitignore
 
+# Re-include contents of SeasonalCollectorGame (since '*' ignores everything by default)
+!SeasonalCollectorGame/**
+
 # Ignore common files inside backend
 backend/venv/
 backend/__pycache__/

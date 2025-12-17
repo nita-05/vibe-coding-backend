@@ -5,7 +5,8 @@ import os
 
 class Settings(BaseSettings):
     openai_api_key: str
-    openai_model: str = "gpt-4"
+    # Default to fast model (override via OPENAI_MODEL env var)
+    openai_model: str = "gpt-4o-mini"
     roblox_api_key: str = ""  # Optional - for future Roblox Cloud API integration
     roblox_universe_id: str = ""
     roblox_place_id: str = ""
