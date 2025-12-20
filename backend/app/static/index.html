@@ -1,0 +1,580 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vibe Coding – Prototype</title>
+    <style>
+      :root{
+        --bg: #070b18;
+        --panel: #0f1631;
+        --panel2:#0b1026;
+        --border:#22315f;
+        --text:#e7eaf3;
+        --muted:#a6b0db;
+        --muted2:#7f8ac0;
+        --brand:#4c6fff;
+        --brand2:#6b8bff;
+        --danger:#ffb4b4;
+      }
+      *{ box-sizing:border-box; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background:var(--bg); color:var(--text); }
+      .wrap { max-width: 1300px; margin: 0 auto; padding: 18px; }
+      .card { background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border: 1px solid var(--border); border-radius: 14px; padding: 16px; backdrop-filter: blur(6px); }
+      h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.2px; }
+      p { margin: 6px 0 0; color:var(--muted); }
+      label { display:block; font-size: 12px; color: var(--muted2); margin-bottom: 6px; }
+      textarea, select, input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #2b3b75;
+        background: #0a0f22;
+        color: var(--text);
+        outline: none;
+      }
+      textarea{ resize: vertical; }
+      button {
+        background: linear-gradient(180deg, var(--brand2), var(--brand));
+        color:white;
+        border:none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-weight: 800;
+        cursor:pointer;
+      }
+      .btn-ghost{
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .row { display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
+      .muted { color:var(--muted); font-size: 13px; }
+      .grid { display:grid; grid-template-columns: 330px 1fr; gap: 12px; margin-top: 12px; }
+      .list { max-height: 520px; overflow:auto; display:flex; flex-direction:column; gap: 8px; }
+      .file { padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: #0a0f22; cursor:pointer; }
+      .file .path{ font-weight: 800; font-size: 13px; }
+      .file .meta{ font-size: 12px; color: var(--muted2); margin-top: 2px; }
+      .file.active { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(76,111,255,0.2); }
+      .tag { display:inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; background:#0a0f22; border:1px solid var(--border); color:var(--muted); }
+      .topbar { display:flex; justify-content: space-between; align-items:flex-start; gap: 12px; }
+      .danger { color:var(--danger); }
+      a { color:#9fb3ff; }
+      .timeline { display:flex; gap: 8px; overflow:auto; padding-bottom: 4px; }
+      .chip { border:1px solid var(--border); background:#0a0f22; color:var(--text); padding: 6px 10px; border-radius: 999px; font-size: 12px; cursor:pointer; white-space: nowrap; }
+      .chip.active { border-color: var(--brand); }
+      .split { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .editor {
+        width:100%;
+        min-height: 520px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background:#070b18;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        color: var(--text);
+        resize: vertical;
+      }
+      @media (max-width: 980px){
+        .grid{ grid-template-columns: 1fr; }
+        .split{ grid-template-columns: 1fr; }
+        .list{ max-height: 320px; }
+        .editor{ min-height: 360px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="topbar">
+          <div>
+            <h1>Vibe Coding – Prototype Studio</h1>
+            <p>Prompt → Generate Scripts → Edit → Test. Beginner-friendly Roblox game creation.</p>
+          </div>
+          <span class="tag" id="aiStatus" style="display:none;"></span>
+        </div>
+        <div class="split" style="margin-top: 12px;">
+          <div>
+            <label for="template">Game type</label>
+            <select id="template">
+              <option value="">Custom (write your own prompt)</option>
+              <option value="obby">Obby</option>
+              <option value="tycoon">Tycoon</option>
+              <option value="endless_runner">Endless Runner</option>
+              <option value="racing">Racing</option>
+              <option value="fps">FPS</option>
+              <option value="coin_collector">Coin Collector</option>
+              <option value="seasonal_collector">Seasonal Collector</option>
+            </select>
+          </div>
+          <div>
+            <label for="titleHint">Project name (for ZIP filename)</label>
+            <input id="titleHint" placeholder="e.g. MyCoinGame" />
+          </div>
+        </div>
+        <div class="split" style="margin-top: 10px;">
+          <div>
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt" style="min-height: 110px;">Create a coin-collecting game with obstacles. Make it simple and beginner-friendly.</textarea>
+          </div>
+          <div>
+            <label for="change">Regenerate with changes (iterate on your game)</label>
+            <textarea id="change" style="min-height: 110px;" placeholder="Example: make obstacles slower, add a win message at 25 coins, improve UI."></textarea>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <button id="gen">Generate</button>
+          <button id="regen" class="btn-ghost">Regenerate with changes</button>
+          <button id="zipgen" class="btn-ghost">Download ZIP (AI generated)</button>
+          <button id="zip" class="btn-ghost">Download ZIP (current edits)</button>
+          <button id="plugin" class="btn-ghost">Open in Roblox Studio</button>
+          <span id="status" class="muted"></span>
+        </div>
+        <div class="muted" style="margin-top: 8px;">
+          Workflow: Generate → select a file → edit → copy & paste into Roblox Studio → Play. Use Regenerate to iterate.
+        </div>
+      </div>
+
+      <div id="out" class="grid" style="display:none;">
+        <div class="card">
+          <div class="row" style="justify-content: space-between;">
+            <strong>Files</strong>
+            <input id="filter" placeholder="Filter files (e.g. CoinService)" style="max-width: 280px;" />
+            <button id="copy" class="btn-ghost">Copy file</button>
+          </div>
+          <div id="fileList" class="list" style="margin-top: 10px;"></div>
+          <div style="margin-top: 12px;">
+            <strong>Setup (in Roblox Studio)</strong>
+            <ol id="setup" class="muted"></ol>
+          </div>
+          <div style="margin-top: 10px;" class="muted">
+            <div><strong>Notes</strong></div>
+            <ul id="notes"></ul>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row" style="justify-content: space-between;">
+            <div>
+              <div class="muted">Selected file</div>
+              <div id="selPath" style="font-weight:700;"></div>
+            </div>
+          </div>
+          <textarea id="code" class="editor" spellcheck="false"></textarea>
+          <div class="row" style="margin-top: 8px; justify-content: space-between;">
+            <div class="muted">Edit here before copying into Roblox Studio.</div>
+            <div class="row">
+              <span class="tag" id="charCount">0 chars</span>
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <div class="muted" style="margin-bottom: 8px;">History timeline</div>
+            <div id="timeline" class="timeline"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="err" class="card" style="display:none; margin-top: 14px;">
+        <div class="danger" style="font-weight:700;">Error</div>
+        <div id="errText" class="muted"></div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const genBtn = $('gen');
+      const regenBtn = $('regen');
+      const status = $('status');
+      const out = $('out');
+      const err = $('err');
+      const errText = $('errText');
+      const aiStatus = $('aiStatus');
+      const fileList = $('fileList');
+      const code = $('code');
+      const selPath = $('selPath');
+      const setup = $('setup');
+      const notes = $('notes');
+      const copyBtn = $('copy');
+      const filter = $('filter');
+      const template = $('template');
+      const zipBtn = $('zip');
+      const zipGenBtn = $('zipgen');
+      const pluginBtn = $('plugin');
+      const timeline = $('timeline');
+      const titleHint = $('titleHint');
+      const changeBox = $('change');
+      const charCount = $('charCount');
+
+      let current = { idx: 0, files: [], title: '', description: '', setup_instructions: [], notes: [] };
+      let history = []; // { label, snapshot }
+      let historyIdx = -1;
+
+      // Per-game example prompts (user can always edit these)
+      const EXAMPLES = {
+        obby: {
+          prompt: 'Create a 10-stage obby with checkpoints, kill bricks, and a finish reward. Make it colorful and beginner-friendly.',
+          changePlaceholder: 'Example: add moving platforms, add a timer UI, add a “stage cleared” popup.',
+        },
+        tycoon: {
+          prompt: 'Create a simple tycoon: a dropper that generates money, a collector, and 3 upgrades that increase income. Add a clean UI.',
+          changePlaceholder: 'Example: add a second dropper upgrade, add a rebirth button, add a shop UI.',
+        },
+        endless_runner: {
+          prompt: 'Create an endless runner with spawning obstacles, increasing difficulty over time, and a distance counter UI.',
+          changePlaceholder: 'Example: add coin pickups, add powerups, make obstacles vary in size and spacing.',
+        },
+        racing: {
+          prompt: 'Create a simple racing game: lap-based track, checkpoints, lap counter UI, and a finish leaderboard. Keep it beginner-friendly.',
+          changePlaceholder: 'Example: add boosts, add time trials, add better checkpoint validation.',
+        },
+        fps: {
+          prompt: 'Create a simple FPS-style game: basic blaster tool, hit detection, health, respawn, and a score UI. Keep it safe and beginner-friendly.',
+          changePlaceholder: 'Example: add teams, add reload, add weapon pickups, add a simple match timer.',
+        },
+        coin_collector: {
+          prompt: 'Create a coin-collecting game with obstacles. Make it simple and beginner-friendly.',
+          changePlaceholder: 'Example: make obstacles slower, add a win message at 25 coins, improve UI.',
+        },
+        seasonal_collector: {
+          prompt: 'Create a nature-themed Seasonal Collector game: collectible coins/items, obstacles, a simple season cycle (Spring/Summer/Autumn/Winter), and a UI showing coins + current season. Use trees/grass vibe and stay on-road vs off-road danger if possible. Keep it fun and beginner-friendly.',
+          changePlaceholder: 'Example: add a seasonal bonus, add a daily quest, add better coin effects.',
+        },
+      };
+
+      let lastAutoPrompt = $('prompt').value || '';
+      let promptDirty = false;
+
+      $('prompt').addEventListener('input', () => {
+        // user started editing their own prompt
+        promptDirty = true;
+      });
+
+      function applyExampleForTemplate() {
+        const t = template.value;
+        
+        // If "Custom" is selected (empty value), don't auto-fill - let user write their own prompt
+        if (!t || t === '') {
+          // Keep current prompt, don't change it
+          return;
+        }
+        
+        const ex = EXAMPLES[t];
+        if (!ex) return;
+
+        // Only overwrite the prompt if the user hasn't customized it OR it still matches the last auto prompt.
+        if (!promptDirty || ($('prompt').value || '').trim() === (lastAutoPrompt || '').trim()) {
+          $('prompt').value = ex.prompt;
+          lastAutoPrompt = ex.prompt;
+          promptDirty = false;
+        }
+
+        changeBox.placeholder = ex.changePlaceholder || changeBox.placeholder;
+      }
+
+      template.addEventListener('change', () => {
+        applyExampleForTemplate();
+      });
+
+      // initial fill
+      applyExampleForTemplate();
+
+      function setStatus(text) { status.textContent = text || ''; }
+      function showError(text) {
+        err.style.display = 'block';
+        errText.textContent = text;
+      }
+      function clearError() {
+        err.style.display = 'none';
+        errText.textContent = '';
+      }
+
+      function disableAll(disabled) {
+        genBtn.disabled = disabled;
+        regenBtn.disabled = disabled;
+        zipBtn.disabled = disabled;
+        zipGenBtn.disabled = disabled;
+        pluginBtn.disabled = disabled;
+      }
+
+      async function refreshAiStatus() {
+        try {
+          const resp = await fetch('/api/ai/status');
+          const data = await resp.json();
+          const enabled = !!data.ai_enabled;
+          const required = !!data.require_ai;
+          const model = data.model || '';
+          // Badge hidden by design; keep info available if needed.
+          if (aiStatus) {
+            aiStatus.textContent = '';
+          }
+
+          // If AI is required, disable actions when AI is off.
+          if (required && !enabled) {
+            disableAll(true);
+            showError('AI is required but is OFF. Set OPENAI_API_KEY on the backend (Render env vars) and restart.');
+          }
+        } catch (e) {
+          if (aiStatus) {
+            aiStatus.textContent = '';
+          }
+        }
+      }
+
+      refreshAiStatus();
+
+      function pushHistory(label, snap) {
+        history.push({ label, snapshot: JSON.parse(JSON.stringify(snap)) });
+        historyIdx = history.length - 1;
+      }
+
+      function renderTimeline() {
+        timeline.innerHTML = '';
+        history.forEach((h, i) => {
+          const chip = document.createElement('div');
+          chip.className = 'chip' + (i === historyIdx ? ' active' : '');
+          chip.textContent = h.label;
+          chip.onclick = () => {
+            historyIdx = i;
+            current = JSON.parse(JSON.stringify(history[i].snapshot));
+            current.idx = 0;
+            render();
+          };
+          timeline.appendChild(chip);
+        });
+      }
+
+      function render() {
+        out.style.display = 'grid';
+        fileList.innerHTML = '';
+        setup.innerHTML = '';
+        notes.innerHTML = '';
+
+        const q = (filter.value || '').toLowerCase().trim();
+        const files = (current.files || []).filter((f) => !q || (f.path || '').toLowerCase().includes(q));
+
+        files.forEach((f, i) => {
+          const div = document.createElement('div');
+          const realIndex = (current.files || []).findIndex((x) => x.path === f.path);
+          div.className = 'file' + (realIndex === current.idx ? ' active' : '');
+          div.innerHTML = `<div class="path"></div><div class="meta"></div>`;
+          div.querySelector('.path').textContent = f.path;
+          div.querySelector('.meta').textContent = `${(f.content || '').length} chars`;
+          div.onclick = () => { current.idx = realIndex; render(); };
+          fileList.appendChild(div);
+        });
+
+        const f = current.files[current.idx];
+        selPath.textContent = f ? f.path : '';
+        code.value = f ? f.content : '';
+        charCount.textContent = `${(code.value || '').length} chars`;
+
+        (current.setup_instructions || []).forEach((s) => {
+          const li = document.createElement('li');
+          li.textContent = s;
+          setup.appendChild(li);
+        });
+
+        (current.notes || []).forEach((n) => {
+          const li = document.createElement('li');
+          li.textContent = n;
+          notes.appendChild(li);
+        });
+
+        renderTimeline();
+      }
+
+      copyBtn.onclick = async () => {
+        const f = current.files[current.idx];
+        if (!f) return;
+        try {
+          await navigator.clipboard.writeText(f.content);
+          setStatus('Copied!');
+          setTimeout(() => setStatus(''), 900);
+        } catch (e) {
+          showError('Clipboard copy failed.');
+        }
+      };
+
+      code.addEventListener('input', () => {
+        const f = current.files[current.idx];
+        if (!f) return;
+        f.content = code.value;
+        charCount.textContent = `${(code.value || '').length} chars`;
+      });
+
+      filter.addEventListener('input', () => {
+        if (out.style.display !== 'none') render();
+      });
+
+      async function downloadZipFromBytes(resp, filenameFallback) {
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        const cd = resp.headers.get('Content-Disposition') || '';
+        const match = cd.match(/filename=\"?([^\";]+)\"?/i);
+        a.download = (match && match[1]) ? match[1] : filenameFallback;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      zipGenBtn.onclick = async () => {
+        clearError();
+        disableAll(true);
+        setStatus('Building ZIP…');
+        try {
+          const resp = await fetch('/api/roblox/generate_zip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: $('prompt').value, template: template.value }),
+          });
+          if (!resp.ok) {
+            let msg = 'ZIP generation failed';
+            try { msg = (await resp.json())?.detail || msg; } catch (_) {}
+            throw new Error(msg);
+          }
+          await downloadZipFromBytes(resp, 'roblox_pack.zip');
+          setStatus('Downloaded.');
+          setTimeout(() => setStatus(''), 900);
+        } catch (e) {
+          showError(String(e.message || e));
+          setStatus('');
+        } finally {
+          disableAll(false);
+        }
+      };
+
+      zipBtn.onclick = async () => {
+        clearError();
+        if (!current.files || current.files.length === 0) {
+          showError('Generate first, then download.');
+          return;
+        }
+        disableAll(true);
+        setStatus('Zipping current edits…');
+        try {
+          const title = (titleHint.value || current.title || template.value || 'roblox_pack').trim();
+          const resp = await fetch('/api/roblox/zip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, files: current.files }),
+          });
+          if (!resp.ok) throw new Error('ZIP failed');
+          await downloadZipFromBytes(resp, `${title}.zip`);
+          setStatus('Downloaded.');
+          setTimeout(() => setStatus(''), 900);
+        } catch (e) {
+          showError(String(e.message || e));
+          setStatus('');
+        } finally {
+          disableAll(false);
+        }
+      };
+
+      async function doGenerate(label) {
+        clearError();
+        out.style.display = 'none';
+        disableAll(true);
+        setStatus('Generating…');
+        try {
+          const resp = await fetch('/api/roblox/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: $('prompt').value, template: template.value, require_ai: true }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data?.detail || 'Request failed');
+          if (!data.success) throw new Error(data.error || 'Generation failed');
+          current = { idx: 0, ...data };
+          pushHistory(label, current);
+          render();
+          setStatus('Done.');
+          setTimeout(() => setStatus(''), 900);
+        } catch (e) {
+          showError(String(e.message || e));
+          setStatus('');
+        } finally {
+          disableAll(false);
+        }
+      };
+
+      genBtn.onclick = async () => {
+        const label = `Generate ${new Date().toLocaleTimeString()}`;
+        await doGenerate(label);
+      };
+
+      regenBtn.onclick = async () => {
+        clearError();
+        if (!current.files || current.files.length === 0) {
+          showError('Generate first, then regenerate with changes.');
+          return;
+        }
+        const change = (changeBox.value || '').trim();
+        if (!change) {
+          showError('Type a change request first (right box).');
+          return;
+        }
+        out.style.display = 'none';
+        disableAll(true);
+        setStatus('Regenerating…');
+        try {
+          const resp = await fetch('/api/roblox/regenerate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: $('prompt').value,
+              change_request: change,
+              template: template.value,
+              session_id: current.session_id || null,
+              require_ai: true,
+              base_title: current.title || '',
+              base_description: current.description || '',
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data?.detail || 'Request failed');
+          if (!data.success) throw new Error(data.error || 'Regeneration failed');
+          current = { idx: 0, ...data };
+          pushHistory(`Regen ${new Date().toLocaleTimeString()}`, current);
+          render();
+          setStatus('Done.');
+          setTimeout(() => setStatus(''), 900);
+        } catch (e) {
+          showError(String(e.message || e));
+          setStatus('');
+        } finally {
+          disableAll(false);
+        }
+      };
+
+      pluginBtn.onclick = async () => {
+        clearError();
+        const sid = current.session_id;
+        if (!sid) {
+          showError('Generate first (session_id missing).');
+          return;
+        }
+
+        // Browsers typically block directly launching local apps from deployed sites.
+        // Best supported flow: download a Studio plugin that imports the session pack.
+        // User can double-click/import it in Studio, then click the plugin button inside Studio.
+        try {
+          setStatus('Downloading Studio importer…');
+          window.location.href = `/api/roblox/sessions/${sid}/plugin.rbxmx`;
+          setTimeout(() => setStatus(''), 900);
+
+          // Best-effort attempt to prompt Studio open (may be blocked / may do nothing).
+          // This is harmless if unsupported.
+          setTimeout(() => {
+            try { window.location.href = 'roblox-studio://'; } catch (_) {}
+          }, 450);
+        } catch (e) {
+          showError('Could not start Roblox Studio import.');
+          setStatus('');
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -1,21 +1,110 @@
-# Ignore everything EXCEPT backend/ and SeasonalCollectorGame/
-*
+# ============================================
+# VIBE CODING PLATFORM - GITIGNORE
+# Includes: backend/, frontend/, SeasonalCollectorGame/
+# ============================================
 
-# But include these folders
-!backend/
-!SeasonalCollectorGame/
-!RENDER_DEPLOYMENT_GUIDE.md
-!.gitignore
-
-# Re-include contents of SeasonalCollectorGame (since '*' ignores everything by default)
-!SeasonalCollectorGame/**
-
-# Ignore common files inside backend
+# Python - Backend
 backend/venv/
 backend/__pycache__/
-backend/*.db
-backend/.env
+backend/**/__pycache__/
 backend/*.pyc
+backend/*.py[cod]
+backend/*$py.class
+backend/*.so
+backend/.Python
+backend/.env
+backend/.env.local
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/vibe_coding.db
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
 
-# Ignore common files inside SeasonalCollectorGame (if any)
-SeasonalCollectorGame/.git/
+# Frontend - Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
+frontend/*.log
+frontend/.DS_Store
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+.cache/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts (keep source, exclude builds)
+*.zip
+*.tar.gz
+
+# Documentation build
+docs/_build/
+
+# Exclude example/test game folders (keep only SeasonalCollectorGame as example)
+Advanced_FPS/
+NeoCoreArena/
+RacingGame/
+VibeCodingGame/
+
+# Exclude temporary/draft Lua files in root
+*.lua
+!SeasonalCollectorGame/**/*.lua
+
+# Exclude markdown files in root (keep only important ones)
+!README.md
+!RENDER_DEPLOYMENT_GUIDE.md
+!DEPLOYMENT_CHECKLIST.md
+
+# Exclude draft/test files
+DAY_TO_NIGHT_COLLECTOR_PROMPT.txt
+CHANGELOG.md
+ENHANCEMENT_STATUS.md
+*.SETUP_INSTRUCTIONS.md
+FPS_Game_Complete.lua
+FIXED_*.lua
+FINAL_*.lua
+DIAGNOSTIC_*.lua
+DEBUG_*.lua
+COMPLETE_*.lua
+ADVANCED_*.md
+DISABLE_*.md
+DISABLE_*.md
+FIND_*.md

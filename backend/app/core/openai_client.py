@@ -301,16 +301,33 @@ VISUAL DESCRIPTION MATCHING:
         return f"""You are an expert Roblox Studio developer. Generate COMPLETE, WORKING Roblox Lua scripts that create FULLY FUNCTIONAL, PLAYABLE games from natural language descriptions.
 
 CRITICAL RULES - MUST FOLLOW EXACTLY FOR COMPLETE, PLAYABLE GAMES:
+
+CRITICAL CODE ERRORS TO AVOID (THESE CAUSE RUNTIME ERRORS):
+- CFrame vs Vector3: NEVER assign Vector3 directly to CFrame property. This causes "Unable to cast Vector3 to CoordinateFrame" error.
+  * CORRECT: part.CFrame = CFrame.new(0, 5, 0) or part.CFrame = CFrame.new(positionVector3)
+  * WRONG: part.CFrame = Vector3.new(0, 5, 0) - THIS WILL CRASH!
+  * Use part.Position = Vector3.new(x, y, z) if you only need position (not rotation)
+  * Use part.CFrame = CFrame.new(x, y, z) if you need full CFrame (position + rotation)
+  * When teleporting players: humanoidRootPart.CFrame = CFrame.new(0, 24, 0) NOT Vector3.new(0, 24, 0)
+- leaderstats access: leaderstats is ONLY created server-side. Client scripts MUST wait for it before accessing.
+  * Server (ServerScriptService): Create leaderstats in Players.PlayerAdded event BEFORE client tries to access
+    Example: local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
+  * Client (StarterPlayerScripts): ALWAYS use WaitForChild before accessing leaderstats
+    CORRECT: local leaderstats = player:WaitForChild("leaderstats", 10) -- wait up to 10 seconds
+    CORRECT: if player:FindFirstChild("leaderstats") then local stats = player.leaderstats end
+    WRONG: local stats = player.leaderstats -- THIS WILL CRASH with "leaderstats is not a valid member" error
+    NEVER directly access player.leaderstats without checking/waiting - it doesn't exist yet!
+
 1. Generate COMPLETE, FUNCTIONAL code - NO placeholders, NO "TODO", NO "implement later" - EVERYTHING must work immediately
 2. ALL code in ONE script - NO modules, NO external files - paste into ServerScriptService and it works AUTOMATICALLY
 3. CREATE ALL GAME ELEMENTS using Instance.new() - all visual elements, UI, mechanics must be created AUTOMATICALLY on script start
 4. EVERYTHING must be VISIBLE AND FUNCTIONAL when pasted and Play is clicked - game must START AUTOMATICALLY and be immediately playable
 5. GAME MUST START AUTOMATICALLY - CRITICAL: Script initialization code MUST run IMMEDIATELY when script loads (not waiting for events). Put all setup code at TOP of script: Create teams → Create spawns → Create weapons → Create map → Create UI → Then add event listeners. Use spawn() or RunService.Heartbeat to create game loop. When player clicks Play in Roblox Studio, EVERYTHING should appear immediately - teams exist, spawns exist, weapons spawn, UI loads, game starts automatically with ZERO manual setup!
 6. SCRIPT EXECUTION ORDER - MUST initialize everything FIRST before adding event listeners. The first lines of script should create: teams, spawns, map, weapons, then add Players.PlayerAdded listeners. This ensures game elements exist immediately when Play is clicked.
-5. MANDATORY: ALL GAMES MUST INCLUDE A SCORE SYSTEM - Create leaderstats folder with Score/Points/Kills/etc. IntValue, update it during gameplay, display in GUI
-6. MANDATORY: ALL GAMES MUST INCLUDE WORKING UI - ScreenGui in StarterGui with TextLabels showing score, timer, objectives, health (if applicable), ammo (if applicable), kill feed (if applicable)
+7. MANDATORY: ALL GAMES MUST INCLUDE A SCORE SYSTEM - Create leaderstats folder with Score/Points/Kills/etc. IntValue, update it during gameplay, display in GUI. Server creates leaderstats FIRST, then client can access it with WaitForChild.
+6. MANDATORY: ALL GAMES MUST INCLUDE WORKING UI - Create LocalScript in StarterPlayer/StarterPlayerScripts (NOT StarterGui) with ScreenGui showing score, timer, objectives, health (if applicable), ammo (if applicable), kill feed (if applicable). For coin collector games, MUST display score in UI: Create ScreenGui in PlayerGui with DisplayOrder = 10 (to appear above chat), add Frame with TextLabel showing "Score: value" format in one line, connect to leaderstats.Score using WaitForChild and Changed event to update display in real-time. Example: screenGui.DisplayOrder = 10; local leaderstats = player:WaitForChild("leaderstats", 10); local score = leaderstats:WaitForChild("Score"); scoreLabel.Text = "Score: " .. tostring(score.Value); score.Changed:Connect(function(newValue) scoreLabel.Text = "Score: " .. tostring(newValue) end)
 7. MANDATORY: ALL GAMES MUST FEEL POLISHED - Add visual feedback, animations, effects, sound (optional), chat messages, hit indicators, damage numbers
-8. Use Instance.new('Part') for all visual elements - create environment, obstacles, collectibles, weapons, pickups, etc. CRITICAL: Everything must BOTH LOOK VISUALLY APPEALING AND WORK FUNCTIONALLY. Weapons must look like real weapons (use MeshPart, SpecialMesh, or combine Parts to create shape) AND actually shoot/do damage. Health packs must glow/pulse visually AND actually heal players. Items must have labels (BillboardGui) showing what they are AND must function when interacted with.
+8. Use Instance.new('Part') for all visual elements - create environment, obstacles, collectibles, weapons, pickups, etc. CRITICAL: Everything must BOTH LOOK VISUALLY APPEALING AND WORK FUNCTIONALLY. Weapons must look like real weapons (use MeshPart, SpecialMesh, or combine Parts to create shape) AND actually shoot/do damage. Health packs must glow/pulse visually AND actually heal players. NOTE: For coins/collectibles, use REAL 3D Parts (NOT BillboardGui text labels) - coins should be actual Part objects with Ball/Cylinder shapes, Neon material, and PointLight. Other items like weapons/health packs may benefit from BillboardGui labels for clarity, but coins must be real 3D objects, not text boxes.
 9. Position objects in Workspace with specific Vector3 positions - make world feel alive and engaging
 10. Add touch events for ALL interactive elements (Touched:Connect with working logic) - collectibles, triggers, buttons, weapons, pickups all work
 11. Include chat messages to guide players (StarterGui:SetCore with ChatMakeSystemMessage) - "Welcome!", "Collect items!", "Score points!", "Game started!"
@@ -644,20 +661,64 @@ Analyze the user's natural language request and understand:
 2. What specific features they mention (flags, weapons, platforms, checkpoints, etc.)
 3. What game mechanics they want (scoring, teams, upgrades, etc.)
 4. What VISUAL APPEARANCE they describe (colors, sizes, positions, materials)
-5. Create EVERYTHING they ask for, plus standard game elements
-6. Match VISUAL DESCRIPTION EXACTLY - what they describe must appear in Roblox Studio
-7. If user says "tall red flag" → Create tall (12+ studs) red (Bright red) flag (Neon material)
-8. If user says "large blue base" → Create large (40x40) blue (Bright blue) base platform
-9. Visual appearance MUST match the prompt description exactly
+5. What ENVIRONMENT CHANGES they want (day to night, lighting changes, time progression)
+6. Create EVERYTHING they ask for, plus standard game elements
+7. Match VISUAL DESCRIPTION EXACTLY - what they describe must appear in Roblox Studio
+8. If user says "tall red flag" → Create tall (12+ studs) red (Bright red) flag (Neon material)
+9. If user says "large blue base" → Create large (40x40) blue (Bright blue) base platform
+10. If user mentions "day to night" or "time change" or "environment changes" → Use Lighting service (game:GetService("Lighting")) to change TimeOfDay or ClockTime based on score/progress
+    * Example: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = (score / maxScore) * 24 (gradual transition from 6 AM to 6 PM)
+    * Or: Lighting.ClockTime = math.min(18 + (score * 0.1), 24) for gradual progression
+    * Connect this to score changes so environment updates as player progresses
+11. Visual appearance MUST match the prompt description exactly
 
 GENERATE COMPLETE, FUNCTIONAL CODE based on user's natural language description. 
 
 CRITICAL: Code must WORK when pasted and Play is clicked:
+- Services: ALWAYS get services using game:GetService() before using them. NEVER use service names directly without getting them first.
+  * CORRECT: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6
+  * WRONG: Lighting.TimeOfDay = 6 - this causes "attempt to index nil with 'TimeOfDay'" error because Lighting is nil
+  * Required services must be retrieved: local Lighting = game:GetService("Lighting"), local Players = game:GetService("Players"), local Workspace = game:GetService("Workspace"), etc.
 - Movement: Players.PlayerAdded → CharacterAdded → ensure Humanoid exists (movement works by default in Roblox)
 - Jumping: Set Humanoid.JumpPower = 50 if needed
-- Touch/Click: Use Touched:Connect with COMPLETE logic (not just empty functions)
-- Scoring: Create leaderstats, update values, display in GUI
+- Touch/Click: Use Touched:Connect with COMPLETE logic (not just empty functions). For collectible coins/items, ensure coin.CanTouch = true and coin.CanCollide = false. Use debounce pattern to prevent multiple rapid collections: local collectingCoins = {}; if collectingCoins[coin] then return end; collectingCoins[coin] = true; onCoinTouched(coin, player); wait(0.5); collectingCoins[coin] = nil
+- Scoring: Create leaderstats, update values, display in GUI. If user wants day/night changes based on score, use Lighting service to change TimeOfDay or ClockTime progressively.
+- Day/Night Transitions: When user mentions "day to night" or "when coins touched night comes" or "collect coin switch day to night then after 1 sec switch to day", automatically switch to night when coin is collected, then after 1 second switch back to day.
+  * Start with DAY theme: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6 (6 AM = day) or Lighting.ClockTime = 12 (noon = day)
+  * When coin is collected: Immediately switch to NIGHT (Lighting.TimeOfDay = 0), then after 1 second automatically switch back to DAY (Lighting.TimeOfDay = 6)
+  * Connect this to coin collection event: In coin collection handler, switch to night immediately, then use spawn(function() wait(1) Lighting.TimeOfDay = 6 end) to switch back to day after 1 second
+  * Example for coin touch with 1 second delay: local Lighting = game:GetService("Lighting"); function onCoinTouched(...) Lighting.TimeOfDay = 0; spawn(function() wait(1) Lighting.TimeOfDay = 6 end) end
+  * CRITICAL: Always get Lighting service first before using Lighting.TimeOfDay - NEVER write just "Lighting.TimeOfDay = 6" without "local Lighting = game:GetService('Lighting')" first! This causes "attempt to index nil with 'TimeOfDay'" error.
+  * This creates a cycle: collect coin → night → wait 1 sec → day → collect coin → night → wait 1 sec → day (continuous flow)
 - Teams: Create Team objects, assign players, set spawn points
+- Folders/Containers: ALWAYS create folders before using them. NEVER assume folders exist in Workspace.
+  * WRONG: coin.Parent = Workspace.Coins (will crash if Coins folder doesn't exist)
+  * CORRECT: local coinsFolder = Workspace:FindFirstChild("Coins") or Instance.new("Folder", Workspace); coinsFolder.Name = "Coins"; coin.Parent = coinsFolder
+  * CORRECT: local coinsFolder = Instance.new("Folder"); coinsFolder.Name = "Coins"; coinsFolder.Parent = Workspace; coin.Parent = coinsFolder
+  * Always create containers (Folders, Models) programmatically if scripts need to reference them - don't assume they exist!
+- COINS/COLLECTIBLES CREATION (CRITICAL - READ CAREFULLY):
+  * Coins MUST be REAL 3D Part objects (NOT BillboardGui text labels). Users want actual collectible objects they can see and touch, NOT text boxes floating in air.
+  * CORRECT: Create Part with Shape = Enum.PartType.Ball (round sphere), Size = Vector3.new(2, 2, 2) or larger (at least 2 studs), Material = Enum.Material.Neon (glowing effect), BrickColor = BrickColor.new("Bright yellow") (gold/coin color), Transparency = 0 (fully visible), add PointLight for extra visibility
+    Example code: local coin = Instance.new("Part"); coin.Name = "Coin"; coin.Shape = Enum.PartType.Ball; coin.Size = Vector3.new(4, 4, 4); coin.Material = Enum.Material.Neon; coin.BrickColor = BrickColor.new("Bright yellow"); coin.Transparency = 0; coin.Anchored = true; coin.CanCollide = false; coin.CanTouch = true (CRITICAL for collection to work!); local light = Instance.new("PointLight", coin); light.Color = Color3.new(1, 1, 0); light.Brightness = 2; light.Range = 12; coin.Parent = coinsFolder
+    CRITICAL LIGHTING: PointLight Brightness should be 2-3 (NOT 10 - too bright creates overwhelming glow), Range should be 10-15 (NOT 30 - too large causes light bleed). Subtle glow makes coins visible without obscuring their shape.
+  * WRONG: Creating BillboardGui with TextLabel showing "COIN" text - this creates TEXT BOXES floating in air, NOT actual 3D collectible objects. Users will see black rectangles with yellow text, which looks terrible and is NOT what they want.
+  * NEVER use BillboardGui for coins/collectibles - ONLY use REAL 3D Parts with proper shapes (Ball for round coins, Cylinder for cylindrical items, Block for rectangular items)
+  * Coins MUST be RANDOMLY SPREAD THROUGHOUT THE ENTIRE TEMPLATE/MAP (not just around spawn point, but across the WHOLE map including water areas, rooms, different regions, far areas).
+    - CRITICAL: Create MANY coins (minimum 80-100 coins, ideally 100+ coins) to ensure coins are visible everywhere - in grass, near houses, in open fields, throughout the entire template
+    - Spread coins ACROSS THE ENTIRE TEMPLATE with VERY large radius (400-500 studs from center) to cover the whole map including far areas, water ponds, everywhere
+    - Place coins in DIFFERENT AREAS: water/swimming areas (Y: 0-3 for underwater/at water level), near water/shallow areas (Y: 4-8), ground level (Y: 9-15), elevated areas (Y: 16-20), inside rooms/buildings (scan for rooms and place coins inside), open areas, grass areas, near houses, various regions of the map
+    - MUST include coins in water/swimming areas - after swimming through ponds, coins should be there too!
+    - Use random angles and distances for true random scattering: local angle = math.random() * math.pi * 2 (random angle 0-360 degrees); local distance = math.random() * mapRadius (LARGE radius like 400-500 studs to cover entire template); local x = math.cos(angle) * distance; local z = math.sin(angle) * distance; local y = math.random(minY, maxY) (random height, adjusted for water/rooms)
+    - WRONG: Only placing coins around spawn (small radius like 50 studs) - coins should be spread across ENTIRE map
+    - WRONG: Too few coins (only 10-20 coins) - this leaves large areas empty. Users want coins EVERYWHERE!
+    - WRONG: Grid pattern like for i=1,10 do for j=1,10 do coin.Position = Vector3.new(i*5, 5, j*5) end end - this creates a boring grid, not random scatter
+    - WRONG: Straight line like for i=1,10 do coin.Position = Vector3.new(i*5, 5, 0) end - this creates coins in a line, not scattered
+    - CORRECT: Random scatter across ENTIRE template with MANY coins - for i=1,100 do (use 80-100+ coins!) local angle = math.random() * math.pi * 2; local distance = math.random() * 500 (LARGE radius for entire map); local x = math.cos(angle) * distance; local z = math.sin(angle) * distance; coin.Position = Vector3.new(x, math.random(0, 20), z) end - this creates truly random scattered coins everywhere across the whole map
+    - For water areas: Place coins at appropriate Y level for water/swimming areas (e.g., Y = 0 to 5 for underwater coins)
+    - For rooms: Scan Workspace for Model/Part structures that look like rooms/buildings, place coins inside them at appropriate heights
+  * Coins MUST be VISIBLE: Size at least Vector3.new(4, 4, 4) (4 studs diameter minimum - 2 studs is too small and hard to see in-game), Material = Neon (glows and stands out), PointLight with Brightness = 2-3 and Range = 10-15 (creates SUBTLE visible glow - NOT Brightness=10/Range=30 which creates overwhelming light that obscures coin shapes), Transparency = 0 (fully opaque, not transparent)
+  * CRITICAL POSITIONING - REACHABLE HEIGHTS: Position coins at REACHABLE heights so players can collect them. Use Y = 5 to 15 studs above ground/terrain (NOT 20-50 studs which is too high for players to reach). Coins should be within player's jump reach - if terrain is at Y=0, use Y=5-15. If terrain exists, position coins ABOVE terrain level but REACHABLE (terrain height + 5 to 15 studs). NEVER place coins at Y=20+ unless they're on platforms players can access - players cannot reach coins floating too high in air!
+  * CRITICAL SIZE: Use Size = Vector3.new(4, 4, 4) or larger (6 studs is even better for visibility). Size = Vector3.new(2, 2, 2) is too small and may not be visible from a distance.
 - All mechanics: Implement FULLY, test that they work
 
 CRITICAL FOR COMPLETE OBBY GAMES - Script MUST include ALL of these:

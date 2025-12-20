@@ -57,7 +57,7 @@ local ROAD_SLIDER_CHANCE_PER_ROAD = 0.35 -- 35% of roads get a slider (medium)
 local MIN_ROAD_PART_SIZE = 18 -- ignore tiny parts like sidewalk pieces
 
 -- Moving traffic car obstacles (like your white car)
-local ENABLE_TRAFFIC_CARS = true
+local ENABLE_TRAFFIC_CARS = false
 local TRAFFIC_CAR_BASE_COUNT = 10
 local TRAFFIC_CAR_EXTRA_PER_LEVEL = 4
 local TRAFFIC_CAR_MAX_COUNT = 60
