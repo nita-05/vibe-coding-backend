@@ -37,6 +37,32 @@ def chat(*, messages: List[Dict[str, str]], system_prompt: str, temperature: flo
         raise HTTPException(status_code=502, detail=f"Upstream AI error: {e}")
 
 
+def chat_stream(*, messages: List[Dict[str, str]], system_prompt: str, temperature: float, max_tokens: int):
+    """Yield assistant tokens as they stream from OpenAI."""
+    try:
+        stream = _client().chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                *messages,
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        for event in stream:
+            try:
+                delta = event.choices[0].delta.content  # type: ignore[attr-defined]
+            except Exception:
+                delta = None
+            if delta:
+                yield delta
+    except HTTPException:
+        raise
+    except Exception as e:  # pragma: no cover
+        raise HTTPException(status_code=502, detail=f"Upstream AI error: {e}")
+
+
 def generate_json(
     *,
     prompt: str,

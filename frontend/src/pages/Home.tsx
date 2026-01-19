@@ -121,7 +121,7 @@ export default function Home() {
                 <Zap className="w-6 h-6 text-robotic-cyan" />
               </div>
               <div>
-                <h1 className="text-2xl font-heading font-bold neon-glow">Vibe Coding</h1>
+                <h1 className="text-2xl font-heading font-bold neon-glow">Vibe Studio</h1>
                 <p className="text-xs text-robotic-cyan/60">Create Roblox Games from Text</p>
               </div>
             </div>

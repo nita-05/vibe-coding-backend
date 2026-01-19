@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Coins, TrendingUp, Zap, Star, Award, BarChart3, ChevronRight, ExternalLink, Copy, Play, Square, Rocket, Gift } from 'lucide-react';
+import { Star, BarChart3, ExternalLink, Play, Square } from 'lucide-react';
 import { GenerationResponse } from '../services/api';
 
 interface Upgrade {
@@ -32,7 +32,7 @@ export default function SimulatorGamePreview({ result }: SimulatorGamePreviewPro
   const [clickEffects, setClickEffects] = useState<Array<{id: number, x: number, y: number, amount: number}>>([]);
   const clickEffectId = useRef(0);
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const autoClickerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoClickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [upgrades, setUpgrades] = useState<Upgrade[]>([
     {

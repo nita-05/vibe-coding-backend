@@ -64,3 +64,55 @@ class RobloxRegenerateRequest(BaseModel):
     base_files: List[RobloxFile] = Field(default_factory=list)
     temperature: float = 0.2
     max_tokens: int = 1800
+
+
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=8)
+    name: Optional[str] = None
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class AuthMeResponse(BaseModel):
+    authenticated: bool
+    user: Optional[UserPublic] = None
+
+
+class ProjectFile(BaseModel):
+    path: str
+    content: str
+
+
+class ProjectSaveRequest(BaseModel):
+    name: str
+    files: List[ProjectFile]
+    description: Optional[str] = None
+
+
+class ProjectUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ProjectInfo(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    files: List[ProjectFile]
+    created_at: str
+    updated_at: str
+
+
+class ProjectListResponse(BaseModel):
+    projects: List[ProjectInfo]

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Flag, Zap, Clock, Target, ExternalLink, Copy, Gauge, Award, BookOpen } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Play, Square, Flag, Zap, Clock, Target, ExternalLink, Gauge, Award, BookOpen } from 'lucide-react';
 import { GenerationResponse } from '../services/api';
 
 interface Checkpoint {
@@ -15,9 +15,9 @@ interface RacingGamePreviewProps {
 
 export default function RacingGamePreview({ result }: RacingGamePreviewProps) {
   const [speed, setSpeed] = useState(0);
-  const [maxSpeed, setMaxSpeed] = useState(150);
+  const maxSpeed = 150;
   const [lap, setLap] = useState(1);
-  const [totalLaps, setTotalLaps] = useState(3);
+  const totalLaps = 3;
   const [raceTime, setRaceTime] = useState(0);
   const [bestTime, setBestTime] = useState<number | null>(null);
   const [position, setPosition] = useState({ x: 50, y: 50 });
@@ -38,8 +38,8 @@ export default function RacingGamePreview({ result }: RacingGamePreviewProps) {
   const [keysPressed, setKeysPressed] = useState<Set<string>>(new Set());
   const [showHowToPlay, setShowHowToPlay] = useState(true); // Show instructions on first load
   const raceAreaRef = useRef<HTMLDivElement>(null);
-  const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Store keys in ref for immediate access in game loop
   const keysPressedRef = useRef<Set<string>>(new Set());

@@ -3,18 +3,44 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 
 from app.api.models import (
     AIChatRequest,
     AIChatResponse,
+    AuthLoginRequest,
+    AuthMeResponse,
+    AuthRegisterRequest,
+    ProjectFile,
+    ProjectInfo,
+    ProjectListResponse,
+    ProjectSaveRequest,
+    ProjectUpdateRequest,
     RobloxGenerateRequest,
     RobloxGenerateResponse,
     RobloxRegenerateRequest,
     RobloxZipRequest,
+    UserPublic,
+)
+from app.database.database import (
+    authenticate_user,
+    create_or_get_google_user,
+    create_session,
+    create_user,
+    delete_session,
+    get_db,
+    get_project,
+    get_session,
+    list_projects,
+    update_project,
+    delete_project,
+    replace_project,
+    save_project,
+    get_user_by_email,
+    get_user_by_id,
 )
 from app.services.fallback_templates import (
     coin_collector_pack,
@@ -24,6 +50,7 @@ from app.services.fallback_templates import (
     tycoon_pack,
 )
 from app.services.openai_service import chat as ai_chat
+from app.services.openai_service import chat_stream as ai_chat_stream
 from app.services.openai_service import generate_json
 from app.services.repo_templates import seasonal_collector_pack
 from app.services.session_store import session_store
@@ -31,6 +58,360 @@ from app.services.studio_plugin import generate_import_plugin_rbxmx
 from app.settings import settings
 
 router = APIRouter()
+
+
+def _set_session_cookie(response: Response, sid: str) -> None:
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=sid,
+        httponly=True,
+        secure=bool(settings.auth_cookie_secure),
+        samesite=str(settings.auth_cookie_samesite).lower(),
+        max_age=int(settings.auth_session_ttl_seconds),
+        path="/",
+    )
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(key=settings.auth_cookie_name, path="/")
+
+
+def get_current_user(request: Request, db=Depends(get_db)) -> Dict[str, Any]:
+    sid = request.cookies.get(settings.auth_cookie_name) or ""
+    sess = get_session(db=db, sid=sid)
+    if not sess:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    user = get_user_by_id(db=db, user_id=str(sess.get("user_id")))
+    if not user:
+        delete_session(db=db, sid=sid)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return user
+
+
+@router.post("/api/auth/register", response_model=AuthMeResponse)
+def auth_register(req: AuthRegisterRequest, response: Response, db=Depends(get_db)) -> AuthMeResponse:
+    email = (req.email or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email")
+    existing = get_user_by_email(db=db, email=email)
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    user = create_user(db=db, email=email, password=req.password, name=req.name)
+    sess = create_session(db=db, user_id=str(user["id"]), ttl_seconds=settings.auth_session_ttl_seconds)
+    _set_session_cookie(response, sess["id"])
+    return AuthMeResponse(
+        authenticated=True,
+        user=UserPublic(
+            id=str(user["id"]),
+            email=str(user["email"]),
+            name=user.get("name"),
+            avatar_url=user.get("avatar_url"),
+        ),
+    )
+
+
+@router.post("/api/auth/login", response_model=AuthMeResponse)
+def auth_login(req: AuthLoginRequest, response: Response, db=Depends(get_db)) -> AuthMeResponse:
+    user = authenticate_user(db=db, email=req.email, password=req.password)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    sess = create_session(db=db, user_id=str(user["id"]), ttl_seconds=settings.auth_session_ttl_seconds)
+    _set_session_cookie(response, sess["id"])
+    return AuthMeResponse(
+        authenticated=True,
+        user=UserPublic(
+            id=str(user["id"]),
+            email=str(user["email"]),
+            name=user.get("name"),
+            avatar_url=user.get("avatar_url"),
+        ),
+    )
+
+
+@router.post("/api/auth/logout")
+def auth_logout(request: Request, response: Response, db=Depends(get_db)):
+    sid = request.cookies.get(settings.auth_cookie_name) or ""
+    delete_session(db=db, sid=sid)
+    _clear_session_cookie(response)
+    return {"ok": True}
+
+
+@router.get("/api/auth/me", response_model=AuthMeResponse)
+def auth_me(request: Request, db=Depends(get_db)) -> AuthMeResponse:
+    sid = request.cookies.get(settings.auth_cookie_name) or ""
+    sess = get_session(db=db, sid=sid)
+    if not sess:
+        return AuthMeResponse(authenticated=False, user=None)
+    user = get_user_by_id(db=db, user_id=str(sess.get("user_id")))
+    if not user:
+        delete_session(db=db, sid=sid)
+        return AuthMeResponse(authenticated=False, user=None)
+    return AuthMeResponse(
+        authenticated=True,
+        user=UserPublic(
+            id=str(user["id"]),
+            email=str(user["email"]),
+            name=user.get("name"),
+            avatar_url=user.get("avatar_url"),
+        ),
+    )
+
+
+@router.get("/api/auth/google")
+def auth_google_initiate(request: Request):
+    """Initiate Google OAuth flow - redirects to Google login."""
+    if not settings.google_client_id:
+        raise HTTPException(status_code=503, detail="Google OAuth not configured")
+    
+    from urllib.parse import urlencode
+    
+    redirect_uri = settings.google_redirect_uri or f"{request.base_url}api/auth/google/callback"
+    scope = "openid email profile"
+    
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": scope,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    return {"auth_url": auth_url}
+
+
+@router.get("/api/auth/google/callback")
+def auth_google_callback(
+    request: Request,
+    response: Response,
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    db=Depends(get_db),
+):
+    """Handle Google OAuth callback."""
+    if error:
+        # Redirect to frontend with error
+        frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
+        frontend_url = frontend_url.rstrip("/")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/?auth_error={error}", status_code=302)
+    
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+    
+    if not settings.google_client_id or not settings.google_client_secret:
+        raise HTTPException(status_code=503, detail="Google OAuth not configured")
+    
+    try:
+        import httpx
+        
+        redirect_uri = settings.google_redirect_uri or f"{request.base_url}api/auth/google/callback"
+        
+        # Exchange code for token
+        token_response = httpx.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            timeout=10.0,
+        )
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+        # id_token is a JWT (identity token), not usable for the userinfo endpoint.
+        # Keep it available for future verification if needed.
+        _id_token = token_data.get("id_token")
+        
+        if not access_token:
+            raise HTTPException(status_code=400, detail="No access_token received from Google")
+        
+        # Get user info from Google
+        userinfo_response = httpx.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+        userinfo_response.raise_for_status()
+        google_user = userinfo_response.json()
+        
+        google_id = google_user.get("id")
+        email = google_user.get("email", "").lower().strip()
+        name = google_user.get("name")
+        avatar_url = google_user.get("picture")
+        
+        if not google_id or not email:
+            raise HTTPException(status_code=400, detail="Invalid user data from Google")
+        
+        # Create or get user
+        user = create_or_get_google_user(
+            db=db,
+            google_id=google_id,
+            email=email,
+            name=name,
+            avatar_url=avatar_url,
+        )
+        
+        # Create session
+        sess = create_session(db=db, user_id=str(user["id"]), ttl_seconds=settings.auth_session_ttl_seconds)
+        # Redirect to frontend (cookie must be set on the *returned* response)
+        frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
+        frontend_url = frontend_url.rstrip("/")
+        from fastapi.responses import RedirectResponse
+        redirect = RedirectResponse(url=f"{frontend_url}/?auth_success=true", status_code=302)
+        _set_session_cookie(redirect, sess["id"])
+        return redirect
+        
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"Google OAuth error: {e.response.text}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OAuth callback error: {str(e)}")
+
+
+@router.post("/api/projects", response_model=ProjectInfo)
+def save_project_endpoint(
+    req: ProjectSaveRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+) -> ProjectInfo:
+    """Save a project (all files) for the current user."""
+    files_data = [{"path": f.path, "content": f.content} for f in req.files]
+    project_id = save_project(
+        db=db,
+        user_id=str(user["id"]),
+        name=req.name,
+        files=files_data,
+        description=req.description,
+    )
+    proj = get_project(db=db, project_id=project_id, user_id=str(user["id"]))
+    if not proj:
+        raise HTTPException(status_code=500, detail="Failed to retrieve saved project")
+    return ProjectInfo(
+        id=proj["id"],
+        name=proj["name"],
+        description=proj.get("description"),
+        files=[ProjectFile(path=f["path"], content=f["content"]) for f in proj.get("files", [])],
+        created_at=proj["created_at"],
+        updated_at=proj["updated_at"],
+    )
+
+
+@router.get("/api/projects", response_model=ProjectListResponse)
+def list_projects_endpoint(
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+) -> ProjectListResponse:
+    """List all projects for the current user."""
+    projects = list_projects(db=db, user_id=str(user["id"]), limit=100)
+    return ProjectListResponse(
+        projects=[
+            ProjectInfo(
+                id=p["id"],
+                name=p["name"],
+                description=p.get("description"),
+                files=[ProjectFile(path=f["path"], content=f["content"]) for f in p.get("files", [])],
+                created_at=p["created_at"],
+                updated_at=p["updated_at"],
+            )
+            for p in projects
+        ]
+    )
+
+
+@router.get("/api/projects/{project_id}", response_model=ProjectInfo)
+def get_project_endpoint(
+    project_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+) -> ProjectInfo:
+    """Get a project by ID (must belong to current user)."""
+    proj = get_project(db=db, project_id=project_id, user_id=str(user["id"]))
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ProjectInfo(
+        id=proj["id"],
+        name=proj["name"],
+        description=proj.get("description"),
+        files=[ProjectFile(path=f["path"], content=f["content"]) for f in proj.get("files", [])],
+        created_at=proj["created_at"],
+        updated_at=proj["updated_at"],
+    )
+
+
+@router.patch("/api/projects/{project_id}", response_model=ProjectInfo)
+def update_project_endpoint(
+    project_id: str,
+    req: ProjectUpdateRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+) -> ProjectInfo:
+    """Rename/update project metadata (must belong to current user)."""
+    if req.name is None and req.description is None:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    proj = update_project(
+        db=db,
+        project_id=project_id,
+        user_id=str(user["id"]),
+        name=req.name,
+        description=req.description,
+    )
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ProjectInfo(
+        id=proj["id"],
+        name=proj["name"],
+        description=proj.get("description"),
+        files=[ProjectFile(path=f["path"], content=f["content"]) for f in proj.get("files", [])],
+        created_at=proj["created_at"],
+        updated_at=proj["updated_at"],
+    )
+
+
+@router.put("/api/projects/{project_id}", response_model=ProjectInfo)
+def replace_project_endpoint(
+    project_id: str,
+    req: ProjectSaveRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+) -> ProjectInfo:
+    """Replace project files + metadata (must belong to current user)."""
+    files_data = [{"path": f.path, "content": f.content} for f in req.files]
+    proj = replace_project(
+        db=db,
+        project_id=project_id,
+        user_id=str(user["id"]),
+        name=req.name,
+        description=req.description,
+        files=files_data,
+    )
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ProjectInfo(
+        id=proj["id"],
+        name=proj["name"],
+        description=proj.get("description"),
+        files=[ProjectFile(path=f["path"], content=f["content"]) for f in proj.get("files", [])],
+        created_at=proj["created_at"],
+        updated_at=proj["updated_at"],
+    )
+
+
+@router.delete("/api/projects/{project_id}")
+def delete_project_endpoint(
+    project_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Delete a project (must belong to current user)."""
+    ok = delete_project(db=db, project_id=project_id, user_id=str(user["id"]))
+    if not ok:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True}
+
 
 @router.get("/api/ai/status")
 def ai_status():
@@ -55,6 +436,52 @@ def ai_chat_endpoint(req: AIChatRequest) -> AIChatResponse:
         return AIChatResponse(success=True, message=msg)
     except HTTPException as e:
         return AIChatResponse(success=False, message="", error=str(e.detail))
+
+
+@router.post("/api/ai/chat/stream")
+def ai_chat_stream_endpoint(req: AIChatRequest):
+    """Stream AI response tokens (SSE)."""
+    import json as _json
+
+    def gen():
+        try:
+            for token in ai_chat_stream(
+                messages=[m.model_dump() for m in req.messages if m.role != "system"],
+                system_prompt=req.system_prompt,
+                temperature=float(req.temperature),
+                max_tokens=int(req.max_tokens),
+            ):
+                yield f"data: {_json.dumps({'token': token})}\n\n"
+            yield "data: [DONE]\n\n"
+        except HTTPException as e:
+            yield f"event: error\ndata: {_json.dumps({'error': str(e.detail)})}\n\n"
+        except Exception as e:  # pragma: no cover
+            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/api/ai/chat/stream")
+def ai_chat_stream_endpoint(req: AIChatRequest):
+    """Stream AI response tokens (SSE)."""
+    import json as _json
+
+    def gen():
+        try:
+            for token in ai_chat_stream(
+                messages=[m.model_dump() for m in req.messages if m.role != "system"],
+                system_prompt=req.system_prompt,
+                temperature=float(req.temperature),
+                max_tokens=int(req.max_tokens),
+            ):
+                yield f"data: {_json.dumps({'token': token})}\n\n"
+            yield "data: [DONE]\n\n"
+        except HTTPException as e:
+            yield f"event: error\ndata: {_json.dumps({'error': str(e.detail)})}\n\n"
+        except Exception as e:  # pragma: no cover
+            yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 _ROBLOX_SYSTEM_PROMPT = """You generate Roblox Studio game scripts from a text prompt.
@@ -442,7 +869,7 @@ def _repair_pack_once(*, prompt: str, template: str, reason: str, candidate: Dic
 
 
 @router.post("/api/roblox/generate", response_model=RobloxGenerateResponse)
-def roblox_generate(req: RobloxGenerateRequest) -> RobloxGenerateResponse:
+def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(get_current_user)) -> RobloxGenerateResponse:
     prompt = (req.prompt or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt is required")
@@ -622,7 +1049,7 @@ def roblox_generate(req: RobloxGenerateRequest) -> RobloxGenerateResponse:
 
 
 @router.post("/api/roblox/regenerate", response_model=RobloxGenerateResponse)
-def roblox_regenerate(req: RobloxRegenerateRequest) -> RobloxGenerateResponse:
+def roblox_regenerate(req: RobloxRegenerateRequest, user: Dict[str, Any] = Depends(get_current_user)) -> RobloxGenerateResponse:
     prompt = (req.prompt or "").strip()
     change = (req.change_request or "").strip()
     if not prompt:
@@ -781,7 +1208,7 @@ def roblox_regenerate(req: RobloxRegenerateRequest) -> RobloxGenerateResponse:
 
 
 @router.post("/api/roblox/zip")
-def roblox_zip(req: RobloxZipRequest):
+def roblox_zip(req: RobloxZipRequest, user: Dict[str, Any] = Depends(get_current_user)):
     files = [f.model_dump() for f in req.files]
     filename, data = _zip_bytes(req.title, files)
     return StreamingResponse(
@@ -792,7 +1219,7 @@ def roblox_zip(req: RobloxZipRequest):
 
 
 @router.post("/api/roblox/generate_zip")
-def roblox_generate_zip(req: RobloxGenerateRequest):
+def roblox_generate_zip(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(get_current_user)):
     pack = roblox_generate(req)
     filename, data = _zip_bytes(pack.title, [f.model_dump() for f in pack.files])
     return StreamingResponse(
@@ -803,7 +1230,7 @@ def roblox_generate_zip(req: RobloxGenerateRequest):
 
 
 @router.get("/api/roblox/sessions/{session_id}")
-def roblox_session_get(session_id: str):
+def roblox_session_get(session_id: str, user: Dict[str, Any] = Depends(get_current_user)):
     pack = session_store.get(session_id)
     if not pack:
         raise HTTPException(status_code=404, detail="session not found")
@@ -811,7 +1238,7 @@ def roblox_session_get(session_id: str):
 
 
 @router.get("/api/roblox/sessions/{session_id}/plugin.rbxmx")
-def roblox_session_plugin(session_id: str, request: Request):
+def roblox_session_plugin(session_id: str, request: Request, user: Dict[str, Any] = Depends(get_current_user)):
     pack = session_store.get(session_id)
     if not pack:
         raise HTTPException(status_code=404, detail="session not found")
