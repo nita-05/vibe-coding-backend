@@ -26,12 +26,16 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = Field(default=None, alias="GOOGLE_CLIENT_ID")
     google_client_secret: Optional[str] = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
     google_redirect_uri: Optional[str] = Field(default=None, alias="GOOGLE_REDIRECT_URI")
+    
+    # Frontend URL for OAuth redirects
+    frontend_url: Optional[str] = Field(default=None, alias="FRONTEND_URL")
 
     def cors_origin_list(self) -> List[str]:
         v = (self.cors_origins or "").strip()
         if v == "" or v == "*":
             # Cookie-based auth requires explicit origins for dev. For prod builds served by FastAPI,
             # CORS is irrelevant (same-origin), so this mainly affects local dev on Vite.
+            # In production, CORS_ORIGINS should be set to include frontend URL
             return ["http://localhost:5173", "http://127.0.0.1:5173"]
         return [o.strip() for o in v.split(",") if o.strip()]
 

@@ -49,10 +49,12 @@ export default function UserProfile({ onOpenSettings }: UserProfileProps = {}) {
       // Clean URL immediately (guard against "//" which breaks replaceState)
       const safePath = window.location.pathname.replace(/\/{2,}/g, '/') || '/';
       window.history.replaceState({}, '', safePath);
-      // Force refresh auth state
+      // Force refresh auth state - invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['me'] });
-      // Refetch immediately to show user profile
-      queryClient.refetchQueries({ queryKey: ['me'] });
+      // Small delay to ensure cookie is set, then refetch
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['me'] });
+      }, 100);
     }
     const err = params.get('auth_error');
     if (err) {

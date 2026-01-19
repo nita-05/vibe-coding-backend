@@ -192,7 +192,10 @@ def auth_google_callback(
     """Handle Google OAuth callback."""
     if error:
         # Redirect to frontend with error
-        frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
+        frontend_url = settings.frontend_url
+        if not frontend_url:
+            # Fallback: try to infer from request or use localhost for dev
+            frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
         frontend_url = frontend_url.rstrip("/")
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"{frontend_url}/?auth_error={error}", status_code=302)
@@ -259,7 +262,10 @@ def auth_google_callback(
         # Create session
         sess = create_session(db=db, user_id=str(user["id"]), ttl_seconds=settings.auth_session_ttl_seconds)
         # Redirect to frontend (cookie must be set on the *returned* response)
-        frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
+        frontend_url = settings.frontend_url
+        if not frontend_url:
+            # Fallback: try to infer from request or use localhost for dev
+            frontend_url = str(request.base_url).replace(":8000", ":5173") if ":8000" in str(request.base_url) else "http://localhost:5173"
         frontend_url = frontend_url.rstrip("/")
         from fastapi.responses import RedirectResponse
         redirect = RedirectResponse(url=f"{frontend_url}/?auth_success=true", status_code=302)
