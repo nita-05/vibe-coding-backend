@@ -20,7 +20,7 @@ export default function IDE() {
   const queryClient = useQueryClient();
 
   // Check auth status to ensure user profile loads
-  const { data: authData } = useQuery({
+  useQuery({
     queryKey: ['me'],
     queryFn: getMe,
     retry: false,

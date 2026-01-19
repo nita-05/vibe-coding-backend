@@ -263,13 +263,7 @@ export default function RacingGamePreview({ result }: RacingGamePreviewProps) {
     setKeysPressed(new Set());
   };
 
-  const handleCopyToRoblox = () => {
-    if (result?.lua_script) {
-      navigator.clipboard.writeText(result.lua_script);
-      setShowRobloxInstructions(true);
-      setTimeout(() => setShowRobloxInstructions(false), 5000);
-    }
-  };
+  // Removed unused handleCopyToRoblox function
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -415,7 +409,7 @@ export default function RacingGamePreview({ result }: RacingGamePreviewProps) {
               </svg>
 
               {/* Checkpoints */}
-              {checkpoints.map((checkpoint, idx) => (
+              {checkpoints.map((checkpoint) => (
                 <div
                   key={checkpoint.id}
                   className="absolute transform -translate-x-1/2 -translate-y-1/2"

@@ -285,13 +285,7 @@ export default function SimulatorGamePreview({ result }: SimulatorGamePreviewPro
     })));
   };
 
-  const handleCopyToRoblox = () => {
-    if (result?.lua_script) {
-      navigator.clipboard.writeText(result.lua_script);
-      setShowRobloxInstructions(true);
-      setTimeout(() => setShowRobloxInstructions(false), 5000);
-    }
-  };
+  // Removed unused handleCopyToRoblox function
 
   const formatNumber = (num: number): string => {
     if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
