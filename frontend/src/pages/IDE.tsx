@@ -54,6 +54,10 @@ export default function IDE() {
           content: f.content || '',
         }));
         setFiles(newFiles);
+        // Update localStorage with new files
+        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+        // Clear the "cleared by user" flag when generating new files
+        sessionStorage.removeItem('vibe_cleared_by_user');
       }
     },
     onError: (error: any) => {
@@ -63,11 +67,14 @@ export default function IDE() {
   });
 
   const handleFileChange = (path: string, content: string) => {
-    setFiles(prev =>
-      prev.map(file =>
+    setFiles(prev => {
+      const newFiles = prev.map(file =>
         file.path === path ? { ...file, content } : file
-      )
-    );
+      );
+      // Auto-save to localStorage when files change
+      localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+      return newFiles;
+    });
   };
 
   const handleFileCreate = (path: string, content?: string) => {
@@ -94,7 +101,19 @@ export default function IDE() {
   };
 
   const handleFileDelete = (path: string) => {
-    setFiles(prev => prev.filter(file => file.path !== path));
+    setFiles(prev => {
+      const newFiles = prev.filter(file => file.path !== path);
+      // Update localStorage when files are deleted
+      if (newFiles.length === 0) {
+        // If all files deleted, clear localStorage
+        localStorage.removeItem('vibe_project_files');
+        sessionStorage.setItem('vibe_cleared_by_user', 'true');
+      } else {
+        // Update localStorage with remaining files
+        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+      }
+      return newFiles;
+    });
   };
 
   const handleFolderCreate = (folderPath: string) => {
@@ -117,6 +136,9 @@ export default function IDE() {
       // IMPORTANT: Clear localStorage FIRST to prevent auto-load from restoring
       localStorage.removeItem('vibe_project_files');
       localStorage.removeItem('vibe_last_project_id');
+      
+      // Set sessionStorage flag to prevent reload after refresh
+      sessionStorage.setItem('vibe_cleared_by_user', 'true');
       
       // Set flag to prevent auto-load from restoring files
       setSkipAutoLoad(true);
@@ -201,6 +223,14 @@ export default function IDE() {
 
   // Load saved project on mount (only if not skipped and localStorage exists)
   useEffect(() => {
+    // Check if user explicitly cleared localStorage (indicated by special flag)
+    const wasCleared = sessionStorage.getItem('vibe_cleared_by_user');
+    if (wasCleared) {
+      sessionStorage.removeItem('vibe_cleared_by_user');
+      // Don't load from localStorage if user explicitly cleared it
+      return;
+    }
+    
     if (skipAutoLoad) return; // Skip if user clicked "New"
     
     const saved = localStorage.getItem('vibe_project_files');
@@ -218,6 +248,13 @@ export default function IDE() {
 
   // Auto-load last used project (best-effort; falls back to localStorage)
   useEffect(() => {
+    // Check if user explicitly cleared localStorage
+    const wasCleared = sessionStorage.getItem('vibe_cleared_by_user');
+    if (wasCleared) {
+      sessionStorage.removeItem('vibe_cleared_by_user');
+      return; // Don't restore if user cleared
+    }
+    
     if (skipAutoLoad) return; // Skip if user clicked "New"
     
     const lastId = localStorage.getItem('vibe_last_project_id');
