@@ -999,37 +999,48 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
                     data = repaired
                     norm_files = norm2
                 else:
-                    if require_ai:
-                        # One more retry for seasonal_collector: regenerate as MVP from scratch (not repair).
-                        if str(template).strip().lower() == "seasonal_collector":
-                            retry = generate_json(
-                                prompt=_seasonal_mvp_prompt(prompt),
-                                system_prompt=_ROBLOX_SYSTEM_PROMPT,
-                                temperature=0.15,
-                                max_tokens=max(1400, int(req.max_tokens)),
-                                extra_context={"template": template, "retry": "mvp_regen_from_scratch"},
-                            )
-                            files3 = retry.get("files")
-                            if isinstance(files3, list):
-                                norm3 = []
-                                for f3 in files3:
-                                    if isinstance(f3, dict):
-                                        p3 = str(f3.get("path") or "").strip()
-                                        c3 = str(f3.get("content") or "")
-                                        if p3 and c3:
-                                            norm3.append({"path": p3, "content": c3})
-                                if norm3 and not _looks_like_broken_studio_pack(norm3):
-                                    data = retry
-                                    norm_files = norm3
-                                else:
-                                    raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair and retry).")
+                    # Try one more retry for seasonal_collector: regenerate as MVP from scratch (not repair).
+                    if str(template).strip().lower() == "seasonal_collector":
+                        retry = generate_json(
+                            prompt=_seasonal_mvp_prompt(prompt),
+                            system_prompt=_ROBLOX_SYSTEM_PROMPT,
+                            temperature=0.15,
+                            max_tokens=max(1400, int(req.max_tokens)),
+                            extra_context={"template": template, "retry": "mvp_regen_from_scratch"},
+                        )
+                        files3 = retry.get("files")
+                        if isinstance(files3, list):
+                            norm3 = []
+                            for f3 in files3:
+                                if isinstance(f3, dict):
+                                    p3 = str(f3.get("path") or "").strip()
+                                    c3 = str(f3.get("content") or "")
+                                    if p3 and c3:
+                                        norm3.append({"path": p3, "content": c3})
+                            if norm3 and not _looks_like_broken_studio_pack(norm3):
+                                data = retry
+                                norm_files = norm3
                             else:
-                                raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair and retry).")
+                                # Even retry failed - use fallback instead of erroring
+                                if require_ai:
+                                    raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair and retry). Please try a different prompt or simplify your request.")
+                                sid = session_store.create(fallback)
+                                fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                                return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
                         else:
-                            raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair).")
-                    sid = session_store.create(fallback)
-                    fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
-                    return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
+                            # Retry returned invalid - use fallback
+                            if require_ai:
+                                raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair and retry). Please try a different prompt.")
+                            sid = session_store.create(fallback)
+                            fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                            return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
+                    else:
+                        # For other templates, use fallback instead of erroring (better UX)
+                        if require_ai:
+                            raise HTTPException(status_code=502, detail="AI generated a broken pack (even after repair). Please try a simpler prompt or different game type.")
+                        sid = session_store.create(fallback)
+                        fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                        return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
             else:
                 if require_ai:
                     if str(template).strip().lower() == "seasonal_collector":
@@ -1053,11 +1064,26 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
                                 data = retry
                                 norm_files = norm3
                             else:
-                                raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed, retry failed).")
+                                # Even retry failed - use fallback instead of erroring
+                                if require_ai:
+                                    raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed, retry failed). Please try a simpler prompt.")
+                                sid = session_store.create(fallback)
+                                fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                                return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
                         else:
-                            raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed, retry failed).")
+                            # Retry returned invalid - use fallback
+                            if require_ai:
+                                raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed, retry failed). Please try a different prompt.")
+                            sid = session_store.create(fallback)
+                            fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                            return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
                     else:
-                        raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed).")
+                        # For other templates, use fallback instead of erroring
+                        if require_ai:
+                            raise HTTPException(status_code=502, detail="AI generated a broken pack (repair failed). Please try a simpler prompt.")
+                        sid = session_store.create(fallback)
+                        fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
+                        return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
                 sid = session_store.create(fallback)
                 fallback["notes"] = list(fallback.get("notes") or []) + ["AI: FAILED → fallback used"]
                 return RobloxGenerateResponse(success=True, session_id=sid, **fallback)

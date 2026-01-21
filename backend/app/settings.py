@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
     # When true, endpoints will NOT fall back to static templates.
     # They will error if AI is not configured or if AI output is invalid.
-    require_ai: bool = Field(default=True, alias="REQUIRE_AI")
+    # Set to False to use fallback templates when AI fails (better UX - users get working games)
+    require_ai: bool = Field(default=False, alias="REQUIRE_AI")
 
     cors_origins: str = Field(default="*", alias="CORS_ORIGINS")
     database_url: str = Field(default="sqlite:///./vibe_coding.db", alias="DATABASE_URL")
