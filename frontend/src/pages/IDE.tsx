@@ -46,6 +46,15 @@ export default function IDE() {
 
   const generateMutation = useMutation({
     mutationFn: (request: { prompt: string; template: string }) => generateRobloxGame(request),
+    onMutate: () => {
+      // CRITICAL: Clear ALL existing files BEFORE generating new ones
+      // This ensures new generation REPLACES everything, not merges
+      setFiles([]);
+      localStorage.removeItem('vibe_project_files');
+      // Clear project ID since we're generating a new game
+      setCurrentProjectId(null);
+      setCurrentProjectName('My Project');
+    },
     onSuccess: (data) => {
       // Convert response to file array
       if (data.files && Array.isArray(data.files)) {
@@ -53,6 +62,7 @@ export default function IDE() {
           path: f.path || '',
           content: f.content || '',
         }));
+        // REPLACE all files with new generation (not merge)
         setFiles(newFiles);
         // Update localStorage with new files
         localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
@@ -215,9 +225,16 @@ export default function IDE() {
       return;
     }
 
+    // CRITICAL: Clear all files immediately when user clicks Generate
+    // This ensures the new generation starts from a clean slate
+    setFiles([]);
+    localStorage.removeItem('vibe_project_files');
+    setCurrentProjectId(null);
+    setCurrentProjectName('My Project');
+
     generateMutation.mutate({
       prompt: promptText,
-      template: 'seasonal_collector',
+      template: '', // Let AI analyze the prompt naturally
     });
   };
 
