@@ -518,32 +518,51 @@ NATURAL LANGUAGE UNDERSTANDING - PRIMARY DIRECTIVE:
 - Create the EXACT game the user described, not just a generic template
 - Support ANY game type - RPG, puzzle, survival, horror, adventure, etc. - not just listed templates
 
-Rules:
-- Output runnable Roblox Lua scripts.
-- Use clear, copy/paste-friendly code.
-- Do NOT reference external assets unless necessary.
-- Include at least one server script and one client UI script.
-- Cars must NOT be used as obstacles.
-- Keep it simple (prototype quality), but playable.
+QUALITY REQUIREMENTS - PERFECTION IS REQUIRED:
+- Output PERFECT, ERROR-FREE Roblox Lua scripts that work immediately
+- DOUBLE-CHECK your code before submitting - search for common errors:
+  * Search for ".CFrame = Vector3" - if found, FIX IT to use CFrame.new()
+  * Search for "player.leaderstats" without WaitForChild - if found, FIX IT
+  * Search for service names without game:GetService() - if found, FIX IT
+- Use clear, copy/paste-friendly code
+- Do NOT reference external assets unless necessary
+- Include at least one server script and one client UI script
+- Cars must NOT be used as obstacles
+- Keep it simple (prototype quality), but playable
 - CRITICAL: For coin collector games (user mentions "coin collector", "day to night collector", or similar), you MUST generate ALL required files in the "files" array. The game will NOT work if any file is missing. See template expectations below for complete file list.
 
-CRITICAL ROBLOX CODE RULES (MUST FOLLOW):
-- Services: ALWAYS get services using game:GetService() before using them. NEVER use service names directly without getting them first.
-  * CORRECT: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6
-  * WRONG: Lighting.TimeOfDay = 6 - this causes "attempt to index nil with 'TimeOfDay'" error because Lighting is nil
-  * Required services must be retrieved: local Lighting = game:GetService("Lighting"), local Players = game:GetService("Players"), local Workspace = game:GetService("Workspace"), etc.
-- CFrame vs Vector3: NEVER assign Vector3 directly to CFrame. ALWAYS use CFrame.new() to create CFrame.
-  * CORRECT: part.CFrame = CFrame.new(0, 5, 0) or part.CFrame = CFrame.new(positionVector3)
-  * WRONG: part.CFrame = Vector3.new(0, 5, 0) - this causes "Unable to cast Vector3 to CoordinateFrame" error
-  * Use part.Position = Vector3.new(x, y, z) if you only need position (not rotation)
-  * Use part.CFrame = CFrame.new(x, y, z) if you need full CFrame (position + rotation)
-- leaderstats access: leaderstats is ONLY created server-side. Client scripts MUST wait for it.
-  * Server (ServerScriptService): Create leaderstats folder in Players.PlayerAdded event
-    Example: local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
-  * Client (StarterPlayerScripts): ALWAYS use WaitForChild before accessing leaderstats
-    Example: local leaderstats = player:WaitForChild("leaderstats", 10)
-    NEVER directly access player.leaderstats without checking/waiting - causes "leaderstats is not a valid member" error
-  * Check if leaderstats exists: if player:FindFirstChild("leaderstats") then ... end
+CODE REVIEW CHECKLIST - VERIFY BEFORE SUBMITTING:
+□ All CFrame assignments use CFrame.new(), NOT Vector3.new()
+□ All leaderstats access uses WaitForChild or FindFirstChild
+□ All services are retrieved with game:GetService() first
+□ Server creates leaderstats before client tries to access
+□ No direct player.leaderstats access without waiting
+□ All code is complete and functional (no TODOs)
+
+CRITICAL ROBLOX CODE RULES (MUST FOLLOW - THESE ERRORS WILL CAUSE YOUR CODE TO FAIL):
+
+1. SERVICES - ALWAYS GET SERVICES FIRST:
+   * CORRECT: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6
+   * WRONG: Lighting.TimeOfDay = 6 - THIS WILL CRASH with "attempt to index nil" error
+   * ALWAYS get services: local Players = game:GetService("Players"), local Workspace = game:GetService("Workspace"), local ReplicatedStorage = game:GetService("ReplicatedStorage"), etc.
+   * NEVER use service names directly without game:GetService() first!
+
+2. CFrame vs Vector3 - CRITICAL ERROR TO AVOID:
+   * WRONG: part.CFrame = Vector3.new(0, 5, 0) - THIS WILL CRASH with "Unable to cast Vector3 to CoordinateFrame" error
+   * CORRECT: part.CFrame = CFrame.new(0, 5, 0) - Use CFrame.new() for CFrame assignments
+   * CORRECT: part.Position = Vector3.new(0, 5, 0) - Use Position property if you only need position
+   * CORRECT: humanoidRootPart.CFrame = CFrame.new(0, 24, 0) - For teleporting players
+   * WRONG: humanoidRootPart.CFrame = Vector3.new(0, 24, 0) - THIS WILL CRASH!
+   * DOUBLE-CHECK: Before assigning to .CFrame, make sure you're using CFrame.new(), NOT Vector3.new()
+
+3. leaderstats ACCESS - CRITICAL ERROR TO AVOID:
+   * Server (ServerScriptService): MUST create leaderstats FIRST in Players.PlayerAdded event
+     Example: local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
+   * Client (StarterPlayerScripts): ALWAYS use WaitForChild before accessing leaderstats
+     CORRECT: local leaderstats = player:WaitForChild("leaderstats", 10)
+     CORRECT: if player:FindFirstChild("leaderstats") then local stats = player.leaderstats end
+     WRONG: local stats = player.leaderstats - THIS WILL CRASH with "leaderstats is not a valid member" error
+   * NEVER directly access player.leaderstats without WaitForChild or FindFirstChild first!
 - Folders/Containers: ALWAYS create folders/containers before using them in Workspace or other services.
   * WRONG: part.Parent = Workspace.Coins (crashes if Coins folder doesn't exist)
   * CORRECT: local folder = Workspace:FindFirstChild("Coins") or Instance.new("Folder", Workspace); folder.Name = "Coins"; part.Parent = folder
@@ -879,17 +898,29 @@ Rules:
 - Remove any infinite yield risks (e.g., waiting for leaderstats without creating them).
 - Cars must NOT be used as obstacles.
 
-CRITICAL FIXES (MUST APPLY):
-- CFrame vs Vector3: Find ALL instances where Vector3 is assigned to CFrame and fix them.
-  * WRONG: part.CFrame = Vector3.new(0, 5, 0) - causes "Unable to cast Vector3 to CoordinateFrame" error
-  * FIX TO: part.CFrame = CFrame.new(0, 5, 0) or part.Position = Vector3.new(0, 5, 0)
-  * Search for patterns: ".CFrame = Vector3" or ".CFrame = position" (where position is Vector3)
-  * Use CFrame.new() when assigning to CFrame property
-- leaderstats access: Fix client scripts that directly access leaderstats without waiting.
-  * WRONG: local stats = player.leaderstats - causes "leaderstats is not a valid member" error
-  * FIX TO: local leaderstats = player:WaitForChild("leaderstats", 10)
-  * Ensure server creates leaderstats FIRST in Players.PlayerAdded event
-  * Client scripts MUST use WaitForChild or FindFirstChild before accessing
+CRITICAL FIXES (MUST APPLY - SEARCH AND FIX ALL OCCURRENCES):
+
+1. CFrame vs Vector3 - FIND AND FIX ALL:
+   * Search entire codebase for: ".CFrame = Vector3" or ".cframe = vector3"
+   * WRONG: part.CFrame = Vector3.new(0, 5, 0) - causes "Unable to cast Vector3 to CoordinateFrame" error
+   * FIX TO: part.CFrame = CFrame.new(0, 5, 0) - ALWAYS use CFrame.new() for CFrame assignments
+   * ALTERNATIVE: part.Position = Vector3.new(0, 5, 0) - Use Position property if you only need position
+   * Check EVERY file - this error appears in multiple places
+   * Common locations: teleporting players, positioning parts, spawning objects
+
+2. leaderstats access - FIND AND FIX ALL:
+   * Search entire codebase for: "player.leaderstats" or "LocalPlayer.leaderstats" without WaitForChild
+   * WRONG: local stats = player.leaderstats - causes "leaderstats is not a valid member" error
+   * FIX TO: local leaderstats = player:WaitForChild("leaderstats", 10) - ALWAYS wait first
+   * ALTERNATIVE: if player:FindFirstChild("leaderstats") then local stats = player.leaderstats end
+   * Ensure server creates leaderstats FIRST in Players.PlayerAdded event
+   * Check ALL client scripts (StarterPlayerScripts, StarterGui) - this error is common there
+
+3. Services - FIND AND FIX ALL:
+   * Search for: "Lighting.", "Players.", "Workspace." used directly without game:GetService()
+   * WRONG: Lighting.TimeOfDay = 6 - causes "attempt to index nil" error
+   * FIX TO: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6
+   * Check EVERY file that uses services
 """
 
 
@@ -1117,13 +1148,26 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
     except Exception as e:
         # Catch any other exceptions (API errors, timeouts, parsing errors, etc.)
         import traceback
-        error_msg = f"AI generation error: {str(e)}"
+        error_msg = str(e)
         print(f"ERROR in roblox_generate: {error_msg}")
         print(f"Traceback: {traceback.format_exc()}")
+        
+        # Provide helpful error messages
+        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            error_detail = "AI request timed out. The prompt may be too complex. Please try a simpler prompt or try again."
+        elif "rate limit" in error_msg.lower() or "429" in error_msg.lower():
+            error_detail = "AI rate limit exceeded. Please wait a moment and try again."
+        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower():
+            error_detail = "AI API key issue. Please check your OpenAI API key configuration."
+        elif "json" in error_msg.lower():
+            error_detail = "AI returned invalid response format. Please try again or simplify your prompt."
+        else:
+            error_detail = f"AI generation error: {error_msg[:200]}"
+        
         if require_ai:
-            raise HTTPException(status_code=502, detail=error_msg)
+            raise HTTPException(status_code=502, detail=error_detail)
         sid = session_store.create(fallback)
-        fallback["notes"] = list(fallback.get("notes") or []) + [f"AI: ERROR → fallback used"]
+        fallback["notes"] = list(fallback.get("notes") or []) + [f"AI: ERROR ({error_detail[:50]}) → fallback used"]
         return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
 
 
