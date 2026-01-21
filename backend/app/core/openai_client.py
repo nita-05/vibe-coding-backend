@@ -302,38 +302,78 @@ VISUAL DESCRIPTION MATCHING:
 
 CRITICAL RULES - MUST FOLLOW EXACTLY FOR COMPLETE, PLAYABLE GAMES:
 
-CRITICAL CODE ERRORS TO AVOID (THESE CAUSE RUNTIME ERRORS):
-- CFrame vs Vector3: NEVER assign Vector3 directly to CFrame property. This causes "Unable to cast Vector3 to CoordinateFrame" error.
-  * CORRECT: part.CFrame = CFrame.new(0, 5, 0) or part.CFrame = CFrame.new(positionVector3)
-  * WRONG: part.CFrame = Vector3.new(0, 5, 0) - THIS WILL CRASH!
-  * Use part.Position = Vector3.new(x, y, z) if you only need position (not rotation)
-  * Use part.CFrame = CFrame.new(x, y, z) if you need full CFrame (position + rotation)
-  * When teleporting players: humanoidRootPart.CFrame = CFrame.new(0, 24, 0) NOT Vector3.new(0, 24, 0)
-- leaderstats access: leaderstats is ONLY created server-side. Client scripts MUST wait for it before accessing.
-  * Server (ServerScriptService): Create leaderstats in Players.PlayerAdded event BEFORE client tries to access
-    Example: local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
-  * Client (StarterPlayerScripts): ALWAYS use WaitForChild before accessing leaderstats
-    CORRECT: local leaderstats = player:WaitForChild("leaderstats", 10) -- wait up to 10 seconds
-    CORRECT: if player:FindFirstChild("leaderstats") then local stats = player.leaderstats end
-    WRONG: local stats = player.leaderstats -- THIS WILL CRASH with "leaderstats is not a valid member" error
-    NEVER directly access player.leaderstats without checking/waiting - it doesn't exist yet!
+CRITICAL CODE ERRORS TO AVOID (THESE CAUSE RUNTIME ERRORS - DOUBLE-CHECK YOUR CODE):
 
-1. Generate COMPLETE, FUNCTIONAL code - NO placeholders, NO "TODO", NO "implement later" - EVERYTHING must work immediately
-2. ALL code in ONE script - NO modules, NO external files - paste into ServerScriptService and it works AUTOMATICALLY
-3. CREATE ALL GAME ELEMENTS using Instance.new() - all visual elements, UI, mechanics must be created AUTOMATICALLY on script start
-4. EVERYTHING must be VISIBLE AND FUNCTIONAL when pasted and Play is clicked - game must START AUTOMATICALLY and be immediately playable
+1. CFrame vs Vector3 - MOST COMMON ERROR:
+   * WRONG: part.CFrame = Vector3.new(0, 5, 0) - THIS WILL CRASH with "Unable to cast Vector3 to CoordinateFrame" error
+   * CORRECT: part.CFrame = CFrame.new(0, 5, 0) - ALWAYS use CFrame.new() for CFrame assignments
+   * CORRECT: part.Position = Vector3.new(0, 5, 0) - Use Position property if you only need position
+   * CORRECT: humanoidRootPart.CFrame = CFrame.new(0, 24, 0) - For teleporting players
+   * WRONG: humanoidRootPart.CFrame = Vector3.new(0, 24, 0) - THIS WILL CRASH!
+   * BEFORE SUBMITTING: Search your code for ".CFrame = Vector3" - if found, FIX IT to use CFrame.new()
+
+2. leaderstats ACCESS - SECOND MOST COMMON ERROR:
+   * Server (ServerScriptService): MUST create leaderstats FIRST in Players.PlayerAdded event
+     Example: local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
+   * Client (StarterPlayerScripts): ALWAYS use WaitForChild before accessing leaderstats
+     CORRECT: local leaderstats = player:WaitForChild("leaderstats", 10) -- wait up to 10 seconds
+     CORRECT: if player:FindFirstChild("leaderstats") then local stats = player.leaderstats end
+     WRONG: local stats = player.leaderstats -- THIS WILL CRASH with "leaderstats is not a valid member" error
+   * BEFORE SUBMITTING: Search your code for "player.leaderstats" or "LocalPlayer.leaderstats" - if found without WaitForChild, FIX IT
+
+3. SERVICES - ALWAYS GET SERVICES FIRST:
+   * CORRECT: local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6
+   * WRONG: Lighting.TimeOfDay = 6 - THIS WILL CRASH with "attempt to index nil" error
+   * ALWAYS get services: local Players = game:GetService("Players"), local Workspace = game:GetService("Workspace"), etc.
+
+USER REQUEST MATCHING - PRIMARY DIRECTIVE (READ FIRST):
+- MATCH THE USER'S REQUEST EXACTLY - Create ONLY what they ask for, nothing extra
+- If user says "simple coin collector" → Create ONLY coins that can be collected, NO UI, NO score system
+- If user says "simple racing game" → Create ONLY racing mechanics, NO extra UI, NO score system
+- If user mentions "score", "points", "leaderboard" → THEN add score system
+- If user mentions "UI", "display", "show score" → THEN add UI
+- If user says "simple" → Keep it minimal, no extra features
+- DO NOT add features the user didn't ask for - match their request exactly
+
+CODE QUALITY - PERFECTION REQUIRED:
+1. Generate COMPLETE, FUNCTIONAL, ERROR-FREE code - NO placeholders, NO "TODO", NO "implement later" - EVERYTHING must work immediately
+2. BEFORE SUBMITTING CODE: Review your code for these common errors:
+   - Search for ".CFrame = Vector3" - MUST use CFrame.new() instead
+   - Search for "player.leaderstats" - MUST use WaitForChild first
+   - Search for service names without game:GetService() - MUST get services first
+3. ALL code in ONE script - NO modules, NO external files - paste into ServerScriptService and it works AUTOMATICALLY
+4. CREATE ALL GAME ELEMENTS using Instance.new() - all visual elements, UI, mechanics must be created AUTOMATICALLY on script start
+5. EVERYTHING must be VISIBLE AND FUNCTIONAL when pasted and Play is clicked - game must START AUTOMATICALLY and be immediately playable
 5. GAME MUST START AUTOMATICALLY - CRITICAL: Script initialization code MUST run IMMEDIATELY when script loads (not waiting for events). Put all setup code at TOP of script: Create teams → Create spawns → Create weapons → Create map → Create UI → Then add event listeners. Use spawn() or RunService.Heartbeat to create game loop. When player clicks Play in Roblox Studio, EVERYTHING should appear immediately - teams exist, spawns exist, weapons spawn, UI loads, game starts automatically with ZERO manual setup!
 6. SCRIPT EXECUTION ORDER - MUST initialize everything FIRST before adding event listeners. The first lines of script should create: teams, spawns, map, weapons, then add Players.PlayerAdded listeners. This ensures game elements exist immediately when Play is clicked.
-7. MANDATORY: ALL GAMES MUST INCLUDE A SCORE SYSTEM - Create leaderstats folder with Score/Points/Kills/etc. IntValue, update it during gameplay, display in GUI. Server creates leaderstats FIRST, then client can access it with WaitForChild.
-6. MANDATORY: ALL GAMES MUST INCLUDE WORKING UI - Create LocalScript in StarterPlayer/StarterPlayerScripts (NOT StarterGui) with ScreenGui showing score, timer, objectives, health (if applicable), ammo (if applicable), kill feed (if applicable). For coin collector games, MUST display score in UI: Create ScreenGui in PlayerGui with DisplayOrder = 10 (to appear above chat), add Frame with TextLabel showing "Score: value" format in one line, connect to leaderstats.Score using WaitForChild and Changed event to update display in real-time. Example: screenGui.DisplayOrder = 10; local leaderstats = player:WaitForChild("leaderstats", 10); local score = leaderstats:WaitForChild("Score"); scoreLabel.Text = "Score: " .. tostring(score.Value); score.Changed:Connect(function(newValue) scoreLabel.Text = "Score: " .. tostring(newValue) end)
-7. MANDATORY: ALL GAMES MUST FEEL POLISHED - Add visual feedback, animations, effects, sound (optional), chat messages, hit indicators, damage numbers
+7. SCORE SYSTEM - ADD ONLY IF USER EXPLICITLY ASKS FOR IT (CRITICAL):
+   - If user mentions "score", "points", "leaderboard", "track score" → THEN create leaderstats folder with Score/Points/Kills/etc. IntValue
+   - If user says "simple" game without mentioning score → DO NOT add score system
+   - If user asks for "coin collector" without mentioning score → DO NOT add score system or UI
+   - If user says "simple coin collector" → Create ONLY coins, NO score system, NO UI
+   - CRITICAL: Only add score system if user explicitly mentions it - default to NO score for simple games
+   - Server creates leaderstats FIRST, then client can access it with WaitForChild
+
+8. UI - ADD ONLY IF USER EXPLICITLY ASKS FOR IT (CRITICAL):
+   - If user mentions "UI", "score display", "health bar", "timer UI", "show score", "interface" → THEN create LocalScript in StarterPlayer/StarterPlayerScripts with ScreenGui
+   - If user says "simple" game without mentioning UI → DO NOT add UI
+   - If user asks for "coin collector" without mentioning UI → DO NOT add UI
+   - If user says "simple coin collector" → Create ONLY coins, NO UI, NO score display
+   - CRITICAL: Only create UI if user explicitly requests it - default to NO UI for simple games
+   - Example: User says "simple coin collector" → Create coins that can be collected, but NO score UI, NO display, NO interface
+
+9. POLISH - ADD BASED ON USER REQUEST:
+   - If user says "simple" → Keep it minimal, no extra effects
+   - If user mentions "polish", "effects", "animations" → Add visual feedback, animations, effects
+   - Match the complexity level the user requests - "simple" means simple, not polished
 8. Use Instance.new('Part') for all visual elements - create environment, obstacles, collectibles, weapons, pickups, etc. CRITICAL: Everything must BOTH LOOK VISUALLY APPEALING AND WORK FUNCTIONALLY. Weapons must look like real weapons (use MeshPart, SpecialMesh, or combine Parts to create shape) AND actually shoot/do damage. Health packs must glow/pulse visually AND actually heal players. NOTE: For coins/collectibles, use REAL 3D Parts (NOT BillboardGui text labels) - coins should be actual Part objects with Ball/Cylinder shapes, Neon material, and PointLight. Other items like weapons/health packs may benefit from BillboardGui labels for clarity, but coins must be real 3D objects, not text boxes.
 9. Position objects in Workspace with specific Vector3 positions - make world feel alive and engaging
 10. Add touch events for ALL interactive elements (Touched:Connect with working logic) - collectibles, triggers, buttons, weapons, pickups all work
 11. Include chat messages to guide players (StarterGui:SetCore with ChatMakeSystemMessage) - "Welcome!", "Collect items!", "Score points!", "Game started!"
-12. Create leaderboards/scoring - leaderstats.Folder with IntValue/NumberValue for Score/Kills/Deaths/etc., update during gameplay, display in UI
-13. ALL game mechanics must WORK - movement, interaction, scoring, respawn (if applicable), timers, objectives, weapons (if applicable), health (if applicable)
-14. GAME MUST BE PLAYABLE IMMEDIATELY - Player can paste script, click Play, and immediately play, interact, score points, see progress, feel engagement
+12. Create leaderboards/scoring ONLY if user mentions score/leaderboard/points - leaderstats.Folder with IntValue/NumberValue for Score/Kills/Deaths/etc., update during gameplay, display in UI if user requested UI
+13. ALL game mechanics must WORK - movement, interaction, scoring (if requested), respawn (if applicable), timers (if requested), objectives (if mentioned), weapons (if applicable), health (if applicable)
+14. GAME MUST BE PLAYABLE IMMEDIATELY - Player can paste script, click Play, and immediately play
+15. MATCH USER REQUEST EXACTLY - If user says "simple", make it simple. If user says "with UI", add UI. Don't add features they didn't ask for
 15. FOR FPS GAMES: Include weapons, shooting, health, damage, ammo, teams, spawns, kill feed, health bar, ammo counter, score display, respawn system
 16. FOR TYCOON GAMES: Include money system, generators, upgrades, buildings, GUI, passive income, base expansion
 17. FOR RACING GAMES: Include track, checkpoints, timer, lap counter, finish line, score/leaderboard, car controls

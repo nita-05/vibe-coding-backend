@@ -51,6 +51,8 @@ export default function IDE() {
       // This ensures new generation REPLACES everything, not merges
       setFiles([]);
       localStorage.removeItem('vibe_project_files');
+      // Clear AI chat history when generating new game - prevent merging with previous games
+      localStorage.removeItem('vibe_ai_chat');
       // Clear project ID since we're generating a new game
       setCurrentProjectId(null);
       setCurrentProjectName('My Project');
@@ -146,6 +148,10 @@ export default function IDE() {
       // IMPORTANT: Clear localStorage FIRST to prevent auto-load from restoring
       localStorage.removeItem('vibe_project_files');
       localStorage.removeItem('vibe_last_project_id');
+      // Clear AI chat history when starting new project
+      localStorage.removeItem('vibe_ai_chat');
+      // Clear project hash so AI Panel knows it's a new project
+      sessionStorage.removeItem('vibe_ai_project_hash');
       
       // Set sessionStorage flag to prevent reload after refresh
       sessionStorage.setItem('vibe_cleared_by_user', 'true');
@@ -229,6 +235,10 @@ export default function IDE() {
     // This ensures the new generation starts from a clean slate
     setFiles([]);
     localStorage.removeItem('vibe_project_files');
+    // Clear AI chat history - prevent AI from using previous game context
+    localStorage.removeItem('vibe_ai_chat');
+    // Clear project hash so AI Panel knows it's a new project
+    sessionStorage.removeItem('vibe_ai_project_hash');
     setCurrentProjectId(null);
     setCurrentProjectName('My Project');
 

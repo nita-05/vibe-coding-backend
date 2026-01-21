@@ -61,6 +61,12 @@ Vibe Studio is a **web-based IDE** that lets you create Roblox games using **nat
 - Works for any game type: Coin collectors, Racing games, Obbies, Platformers, Survival games, Tycoons, RPGs, FPS, Puzzle games, and more
 - Creates any Roblox game according to user prompts
 - No coding knowledge required
+- **Intelligent Context Understanding**: AI understands game mechanics, player interactions, and Roblox-specific requirements
+- **Multi-File Generation**: Automatically creates organized code structure (ServerScriptService, StarterGui, etc.)
+- **Best Practices Built-In**: Generated code follows Roblox conventions, includes proper error handling, and uses optimized patterns
+- **Iterative Refinement**: Users can ask for modifications ("make it harder", "add more coins", "change the theme")
+- **Smart Defaults**: AI fills in missing details with sensible defaults (e.g., spawn points, UI positioning, game balance)
+- **Production-Ready Output**: Code includes comments, proper variable naming, and is immediately deployable
 
 ### ✅ **2. Professional IDE**
 - VS Code-like experience (Monaco Editor)

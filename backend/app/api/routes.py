@@ -501,7 +501,25 @@ Return ONLY a JSON object with this shape:
   "notes": [string]
 }
 
+CRITICAL - USER REQUEST MATCHING (READ THIS FIRST):
+- MATCH THE USER'S REQUEST EXACTLY - Create ONLY what they ask for, nothing extra
+- If user says "simple coin collector" → Create ONLY coins that can be collected, NO UI, NO score system unless they mention it
+- If user says "simple racing game" → Create ONLY racing mechanics, NO extra UI unless they mention it
+- If user mentions "score", "points", "leaderboard", "track score" → THEN add score system
+- If user mentions "UI", "display", "show score", "interface" → THEN add UI
+- If user says "simple" → Keep it minimal, no extra features
+- DO NOT add "helpful" features the user didn't ask for - match their request exactly
+- CRITICAL: For initial generation, create exactly what the prompt asks for - no assumptions, no extras
+
 CRITICAL: The "files" array MUST contain ALL required files for the game to work. For coin collector/day-to-night collector games, you MUST include ALL 3 files (see template expectations below). DO NOT omit any files - the game will not function if files are missing!
+
+MANDATORY OUTPUT REQUIREMENTS:
+- The "files" array MUST contain at least 1 file (minimum requirement)
+- Each file MUST have both "path" (string, non-empty) AND "content" (string, non-empty with actual Lua code)
+- Files with empty content will be rejected - every file MUST have complete, working code
+- Example of CORRECT file: {"path": "ServerScriptService/Game.lua", "content": "-- Game script\nlocal Players = game:GetService('Players')\nprint('Game started')"}
+- Example of WRONG file: {"path": "ServerScriptService/Game.lua", "content": ""} - THIS WILL BE REJECTED
+- If you cannot generate complete code for a file, DO NOT include it in the response - only include files with complete, working code
 
 NATURAL LANGUAGE UNDERSTANDING - PRIMARY DIRECTIVE:
 - ANALYZE the user's natural language prompt to understand what type of game they want
@@ -526,9 +544,18 @@ QUALITY REQUIREMENTS - PERFECTION IS REQUIRED:
   * Search for service names without game:GetService() - if found, FIX IT
 - Use clear, copy/paste-friendly code
 - Do NOT reference external assets unless necessary
-- Include at least one server script and one client UI script
+- Include at least one server script (required for all games)
+- Include client UI script ONLY if user mentions UI, score display, or interface
 - Cars must NOT be used as obstacles
-- Keep it simple (prototype quality), but playable
+
+USER REQUEST MATCHING - CRITICAL (ENFORCE STRICTLY):
+- If user says "simple coin collector" → Create ONLY coins that can be collected, NO score UI, NO leaderstats unless explicitly mentioned
+- If user says "coin collector with score UI" → Create coins AND score UI
+- If user says "create a simple racing game" → Create ONLY track and racing mechanics, NO extra UI, NO score system unless mentioned
+- If user mentions "score", "points", "leaderboard", "track score" → THEN add score system
+- If user mentions "UI", "display", "show score", "interface" → THEN add UI
+- Only add what the user explicitly requests - don't add "helpful" features they didn't ask for
+- CRITICAL: If the prompt does NOT mention UI or score, DO NOT create them - keep it simple
 - CRITICAL: For coin collector games (user mentions "coin collector", "day to night collector", or similar), you MUST generate ALL required files in the "files" array. The game will NOT work if any file is missing. See template expectations below for complete file list.
 
 CODE REVIEW CHECKLIST - VERIFY BEFORE SUBMITTING:
@@ -538,6 +565,8 @@ CODE REVIEW CHECKLIST - VERIFY BEFORE SUBMITTING:
 □ Server creates leaderstats before client tries to access
 □ No direct player.leaderstats access without waiting
 □ All code is complete and functional (no TODOs)
+□ I only included features the user asked for (if user said "simple", I didn't add extra UI/score)
+□ I matched the user's request exactly - they asked for X, I created X
 
 CRITICAL ROBLOX CODE RULES (MUST FOLLOW - THESE ERRORS WILL CAUSE YOUR CODE TO FAIL):
 
@@ -595,7 +624,7 @@ Template expectations for template=coin_collector:
   * CORRECT: Each coin gets random angle and LARGE distance, creating scattered placement across the whole template
 - Coins MUST be VISIBLE (size 2+ studs, Neon material, PointLight glow).
 - Coins MUST be COLLECTIBLE: Set coin.CanTouch = true in coin creation code
-- Score UI MUST appear above chat: Set screenGui.DisplayOrder = 10; Score format: "Score: value" in one line
+- Score UI ONLY if user mentions UI/score - Set screenGui.DisplayOrder = 10; Score format: "Score: value" in one line
 - Obstacles in Workspace/Obstacles kill player on touch.
 - Provide an AutoBuildEnvironment script that creates a minimal playable map.
 
@@ -631,30 +660,37 @@ Template expectations for template=seasonal_collector OR any coin collector game
   * This creates continuous flow: collect coin → night → wait 1 sec → day → collect coin → night → wait 1 sec → day (repeating cycle)
 - Coins must be spread THROUGHOUT THE ENTIRE TEMPLATE/MAP (not just around spawn) - in water areas, rooms, open areas, grass areas, near houses, everywhere across the whole map with large radius (400-500 studs). MUST create MANY coins (minimum 80-100 coins, ideally 100+ coins) to ensure coins are visible everywhere.
 - CRITICAL: Coins MUST have coin.CanTouch = true for collection to work
-- Score UI MUST have screenGui.DisplayOrder = 10 to appear above chat, format "Score: value" in one line
+- Score UI ONLY if user mentions UI/score/display - Set screenGui.DisplayOrder = 10 to appear above chat, format "Score: value" in one line
 - DO NOT import or reference any existing repo files. Generate from scratch based on the prompt.
 
 Roblox placement rules (IMPORTANT):
 - All UI logic must be a LocalScript under StarterPlayer/StarterPlayerScripts/*.client.lua (NOT StarterGui/*.lua).
-- CRITICAL: UI ScreenGui MUST have DisplayOrder = 10 (or higher) to appear above Roblox chat window: screenGui.DisplayOrder = 10
+- ONLY create UI if user mentions UI/score/display - CRITICAL: UI ScreenGui MUST have DisplayOrder = 10 (or higher) to appear above Roblox chat window: screenGui.DisplayOrder = 10
 - Score UI must display "Score: value" format in one line: scoreLabel.Text = "Score: " .. tostring(score.Value)
 - Any leaderstats or server data must be created server-side (ServerScriptService) BEFORE clients try to access it.
 - Client scripts accessing leaderstats MUST use WaitForChild or check existence first.
 - Prefer RemoteEvents for server->client updates.
 - COIN COLLECTION: For collectible coins, MUST set coin.CanTouch = true and coin.CanCollide = false. Use debounce pattern in Touched event: local collectingCoins = {}; coin.Touched:Connect(function(hit) if collectingCoins[coin] then return end; collectingCoins[coin] = true; onCoinTouched(coin, player); wait(0.5); collectingCoins[coin] = nil end)
 
-If template=seasonal_collector OR user prompt mentions "day to night collector" or "coin collector", you MUST generate ALL of these files (complete game pack):
+If template=seasonal_collector OR user prompt mentions "day to night collector" or "coin collector", you MUST generate these files:
 1. ServerScriptService/AutoBuildSeasonalCollector.server.lua - Creates and spawns coins (MUST create MANY coins - minimum 80-100 coins, ideally 100+ coins to ensure coins are visible everywhere throughout the entire map). MUST include coin.CanTouch = true, coin.CanCollide = false, spread coins across entire map with large radius 400-500 studs, random Y positions including Y:0-3 for water areas, Y:5-15 for ground, Y:16-20 for elevated areas. Coins MUST be in grass areas, near houses, in open fields, everywhere across the template. MUST set DAY theme at the very top (FIRST LINE after services): local Lighting = game:GetService("Lighting"); Lighting.TimeOfDay = 6 (CRITICAL: Get service first using game:GetService("Lighting"), then set TimeOfDay. NEVER write just "Lighting.TimeOfDay = 6" without getting the service first - this causes "attempt to index nil" error).
-2. ServerScriptService/CoinService.server.lua - Handles coin collection (Touched event with debounce), creates leaderstats.Score, increments score on collection, switches to NIGHT (Lighting.TimeOfDay = 0) immediately when coin collected, then after 1 second switches back to DAY (Lighting.TimeOfDay = 6) using spawn(function() wait(1) Lighting.TimeOfDay = 6 end), respawns coins at random positions. MUST get Lighting service first: local Lighting = game:GetService("Lighting") at the top of the script.
-3. StarterPlayer/StarterPlayerScripts/ScoreUI.client.lua (or SeasonalUI.client.lua) - Displays score in UI (MUST have screenGui.DisplayOrder = 10 to appear above chat, format "Score: value" in one line, connects to leaderstats.Score with WaitForChild and Changed event).
+2. ServerScriptService/CoinService.server.lua - Handles coin collection (Touched event with debounce). ONLY create leaderstats.Score if user mentions score/points/leaderboard. For "day to night" collectors, increment counter for day-night switching. Respawns coins at random positions. MUST get Lighting service first: local Lighting = game:GetService("Lighting") at the top of the script. For "day to night" collectors: switches to NIGHT (Lighting.TimeOfDay = 0) immediately when coin collected, then after 1 second switches back to DAY (Lighting.TimeOfDay = 6) using spawn(function() wait(1) Lighting.TimeOfDay = 6 end).
+3. StarterPlayer/StarterPlayerScripts/ScoreUI.client.lua (or SeasonalUI.client.lua) - ONLY generate this file if user mentions UI/score/display. Displays score in UI (MUST have screenGui.DisplayOrder = 10 to appear above chat, format "Score: value" in one line, connects to leaderstats.Score with WaitForChild and Changed event).
 
-CRITICAL: Generate ALL 3 files above. The game will NOT work if any file is missing. Each file has specific responsibilities - coin creation, coin collection/day-night logic, and UI display.
-MANDATORY: Your JSON response MUST include all 3 files in the "files" array. DO NOT skip any file. Example structure:
+CRITICAL: Generate the required files above. You MUST generate at least files 1 and 2 (coin creation and coin collection). File 3 (UI) is ONLY needed if user mentions UI/score/display. Each file has specific responsibilities - coin creation, coin collection/day-night logic, and UI display (if requested).
+MANDATORY: Your JSON response MUST include at least files 1 and 2. Include file 3 ONLY if user mentions UI/score/display. Example structure (if UI is requested):
 {
   "files": [
     {"path": "ServerScriptService/AutoBuildSeasonalCollector.server.lua", "content": "..."},
     {"path": "ServerScriptService/CoinService.server.lua", "content": "..."},
     {"path": "StarterPlayer/StarterPlayerScripts/ScoreUI.client.lua", "content": "..."}
+  ]
+}
+Example structure (if UI is NOT requested - simple coin collector):
+{
+  "files": [
+    {"path": "ServerScriptService/AutoBuildSeasonalCollector.server.lua", "content": "..."},
+    {"path": "ServerScriptService/CoinService.server.lua", "content": "..."}
   ]
 }
 """
@@ -690,7 +726,7 @@ CRITICAL ROBLOX CODE RULES (MUST FOLLOW):
   * Use random positions (math.random() with angles/distances), NOT grid patterns
   * NO BillboardGui text labels on coins - users want real collectible objects, not text boxes
   * Use debounce pattern for touch detection: local collectingCoins = {}; if collectingCoins[coin] then return end; collectingCoins[coin] = true; onCoinTouched(coin, player); wait(0.5); collectingCoins[coin] = nil
-- UI DISPLAY: Score UI ScreenGui MUST have DisplayOrder = 10 to appear above chat: screenGui.DisplayOrder = 10; Score format must be "Score: value" in one line: scoreLabel.Text = "Score: " .. tostring(score.Value)
+- UI DISPLAY: Only create/modify UI if user mentions UI/score/display in the change request. Score UI ScreenGui MUST have DisplayOrder = 10 to appear above chat: screenGui.DisplayOrder = 10; Score format must be "Score: value" in one line: scoreLabel.Text = "Score: " .. tostring(score.Value)
 """
 
 
@@ -992,20 +1028,37 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
                 raise HTTPException(status_code=502, detail="AI returned an invalid pack (missing files).")
             return RobloxGenerateResponse(success=True, **fallback)
 
-        # Normalize
+        # Normalize and validate files
         norm_files = []
+        skipped_files = []
         for f in files:
             if not isinstance(f, dict):
+                skipped_files.append("Invalid file format (not a dict)")
                 continue
             path = str(f.get("path") or "").strip()
-            content = str(f.get("content") or "")
-            if not path or not content:
+            content = str(f.get("content") or "").strip()
+            if not path:
+                skipped_files.append(f"File missing path: {f}")
+                continue
+            if not content:
+                skipped_files.append(f"File '{path}' has empty content")
+                continue
+            # Check if content is too short (likely placeholder or error)
+            if len(content) < 50:
+                skipped_files.append(f"File '{path}' content too short ({len(content)} chars) - likely incomplete")
                 continue
             norm_files.append({"path": path, "content": content})
 
         if not norm_files:
+            # Provide helpful error message
+            skip_reason = f"All {len(files)} files were invalid. Reasons: {', '.join(skipped_files[:3])}" if skipped_files else "No valid files found in response"
             if require_ai:
-                raise HTTPException(status_code=502, detail="AI returned an invalid pack (empty files).")
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"AI returned an invalid pack (empty files). {skip_reason}. Please try again or simplify your prompt."
+                )
+            # Log the issue for debugging
+            print(f"AI generation failed - no valid files. Skipped: {skipped_files}")
             return RobloxGenerateResponse(success=True, **fallback)
 
         # If AI produced an obviously broken pack, return a known-good fallback.

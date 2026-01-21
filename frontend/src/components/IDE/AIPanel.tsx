@@ -65,6 +65,32 @@ export default function AIPanel({
     localStorage.setItem('vibe_ai_chat', JSON.stringify(messages.slice(-60)));
   }, [messages]);
 
+  // CRITICAL: Check if project changed when panel opens or files change - clear old messages immediately
+  useEffect(() => {
+    if (!isOpen || !allFiles || allFiles.length === 0) return;
+    
+    // Calculate current project hash
+    const currentProjectHash = allFiles.length > 0
+      ? allFiles.map(f => `${f.path}:${f.content.substring(0, 100).length}`).sort().join('|')
+      : '';
+    
+    const lastProjectHash = sessionStorage.getItem('vibe_ai_project_hash');
+    
+    // If project changed (new game generated), clear messages immediately
+    if (currentProjectHash && currentProjectHash !== lastProjectHash) {
+      // New project detected - clear messages and localStorage
+      setMessages([]);
+      localStorage.removeItem('vibe_ai_chat');
+      sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+    } else if (!currentProjectHash) {
+      // No files - clear everything
+      sessionStorage.removeItem('vibe_ai_project_hash');
+    } else {
+      // Same project - update hash if not set
+      sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+    }
+  }, [isOpen, allFiles]);
+
   useEffect(() => {
     if (!isOpen) return;
     setTimeout(() => {
@@ -115,12 +141,36 @@ export default function AIPanel({
     setLastAssistantFull(null);
 
     try {
-      // Build conversation history for AI - send full context
-      // Include previous messages + current message with full context
-      const conversationHistory: AIChatMessage[] = [
-        ...messages, // Previous conversation
-        { role: 'user' as AIChatRole, content: fullUser }, // Current message with full context
-      ].slice(-30); // Keep last 30 messages (15 exchanges) to maintain context
+      // Build conversation history for AI - CRITICAL: Prevent merging with previous games
+      // Check if project changed - if files changed significantly, clear old context
+      const currentProjectHash = allFiles && allFiles.length > 0 ? 
+        allFiles.map(f => `${f.path}:${f.content.substring(0, 100).length}`).sort().join('|') : '';
+      const lastProjectHash = sessionStorage.getItem('vibe_ai_project_hash');
+      
+      let conversationHistory: AIChatMessage[];
+      
+      // If project structure changed significantly (new game generated), start fresh
+      if (currentProjectHash && currentProjectHash !== lastProjectHash) {
+        // New project detected - clear old messages and start fresh
+        conversationHistory = [{ role: 'user' as AIChatRole, content: fullUser }];
+        sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+        // Clear localStorage messages for new project immediately
+        const emptyMessages: AIChatMessage[] = [];
+        setMessages(emptyMessages);
+        localStorage.removeItem('vibe_ai_chat');
+      } else if (!currentProjectHash || allFiles?.length === 0) {
+        // No files or empty project - start fresh
+        conversationHistory = [{ role: 'user' as AIChatRole, content: fullUser }];
+        // Clear project hash if no files
+        sessionStorage.removeItem('vibe_ai_project_hash');
+      } else {
+        // Same project - use ONLY recent messages (last 6 messages = 3 exchanges) to avoid old game context
+        conversationHistory = [
+          ...messages.slice(-6), // Only last 3 exchanges to prevent merging with previous games
+          { role: 'user' as AIChatRole, content: fullUser }, // Current message with full context
+        ];
+        sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+      }
 
       // Get AI temperature from settings (default 0.4)
       const aiTemperature = (() => {
@@ -129,8 +179,8 @@ export default function AIPanel({
       })();
 
       const systemPrompt = action === 'chat'
-        ? 'You are an expert coding assistant inside a Roblox Lua IDE. When the user requests changes, you MUST analyze the ENTIRE project structure and return ALL files that need updates. Always return files in this format: "Path: ServerScriptService/File.lua\n```lua\n[complete updated file content]\n```". If the user asks for changes, return the updated files - do NOT say "no changes needed". Return the full file content for each file that needs modification, even if changes are minimal. If multiple files need updates, return each one separately with the Path: format.'
-        : 'You are an expert coding assistant inside a Roblox Lua IDE. Be precise. If asked to output code-only, output code only. Remember previous messages in the conversation to provide context-aware responses.';
+        ? 'You are an expert coding assistant inside a Roblox Lua IDE. The user is working on their CURRENT project (shown in project structure). Focus ONLY on the current project files provided - do NOT reference or merge with any previous games or projects. When the user requests changes, you MUST analyze the ENTIRE CURRENT project structure and return ALL files that need updates. Always return files in this format: "Path: ServerScriptService/File.lua\n```lua\n[complete updated file content]\n```". If the user asks for changes, return the updated files - do NOT say "no changes needed". Return the full file content for each file that needs modification, even if changes are minimal. If multiple files need updates, return each one separately with the Path: format. CRITICAL: Only work with the CURRENT project shown in the project structure - ignore any previous game context.'
+        : 'You are an expert coding assistant inside a Roblox Lua IDE. Be precise. If asked to output code-only, output code only. Focus ONLY on the current project files shown in the project structure - do NOT reference previous games.';
 
       const resp = await aiChat({
         messages: conversationHistory,
