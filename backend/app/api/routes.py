@@ -503,6 +503,21 @@ Return ONLY a JSON object with this shape:
 
 CRITICAL: The "files" array MUST contain ALL required files for the game to work. For coin collector/day-to-night collector games, you MUST include ALL 3 files (see template expectations below). DO NOT omit any files - the game will not function if files are missing!
 
+NATURAL LANGUAGE UNDERSTANDING - PRIMARY DIRECTIVE:
+- ANALYZE the user's natural language prompt to understand what type of game they want
+- Extract game type from ANY description, even if not explicitly stated:
+  * "make a game where you collect items" → Collector game
+  * "build a game with jumping platforms" → Platformer/Obby game
+  * "create a game where players race" → Racing game
+  * "make a business simulation" → Tycoon game
+  * "build a shooter with teams" → FPS game
+  * "create an idle clicker" → Simulator game
+  * "make a story-driven adventure" → Story/Narrative game
+- If template is provided, use it as a hint, but STILL analyze the prompt for specifics
+- Extract ALL mentioned features, mechanics, and requirements from the prompt
+- Create the EXACT game the user described, not just a generic template
+- Support ANY game type - RPG, puzzle, survival, horror, adventure, etc. - not just listed templates
+
 Rules:
 - Output runnable Roblox Lua scripts.
 - Use clear, copy/paste-friendly code.
@@ -662,6 +677,21 @@ CRITICAL ROBLOX CODE RULES (MUST FOLLOW):
 
 def _pick_template_pack(template: str, prompt: str) -> Dict[str, Any]:
     template = (template or "").strip().lower()
+    prompt_lower = (prompt or "").strip().lower()
+    
+    # If no template specified, try to infer from prompt
+    if not template:
+        if "racing" in prompt_lower or "race" in prompt_lower or "lap" in prompt_lower or "checkpoint" in prompt_lower:
+            template = "racing"
+        elif "obby" in prompt_lower or "obstacle course" in prompt_lower:
+            template = "obby"
+        elif "tycoon" in prompt_lower:
+            template = "tycoon"
+        elif "runner" in prompt_lower or "endless" in prompt_lower:
+            template = "endless_runner"
+        elif "coin collector" in prompt_lower or "day to night" in prompt_lower or "seasonal" in prompt_lower:
+            template = "seasonal_collector"
+    
     # IMPORTANT:
     # - seasonal_collector => AI-generated Seasonal Collector game (do NOT import repo files)
     # - seasonal_collector_import => export existing repo scripts (advanced/internal)
@@ -675,6 +705,11 @@ def _pick_template_pack(template: str, prompt: str) -> Dict[str, Any]:
         return runner_pack(prompt)
     if template in {"tycoon"}:
         return tycoon_pack(prompt)
+    if template in {"racing", "race"}:
+        # Racing games should be AI-generated, not use fallback templates
+        # The AI will generate based on the prompt which includes racing instructions
+        # For now, we'll let AI handle it but could add a racing_pack function later
+        return coin_collector_pack(prompt)  # This is just a fallback - AI should generate racing game
     # default
     return coin_collector_pack(prompt)
 
@@ -882,8 +917,16 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
 
     require_ai = bool(req.require_ai) or bool(settings.require_ai)
 
-    # Offline fallback: always available.
-    fallback = _pick_template_pack(req.template, prompt)
+    # Template handling:
+    # - If explicitly provided by user → Use it (user wants specific template behavior)
+    # - If not provided → Let AI analyze prompt naturally without template restrictions
+    # Template is only used for fallback templates when AI is unavailable/fails
+    # AI generation should always analyze the natural language prompt, template is just a hint
+    template = req.template or ""
+    
+    # Offline fallback: always available (only used when AI fails or unavailable)
+    # Fallback uses simple keyword detection, but AI generation analyzes prompt naturally
+    fallback = _pick_template_pack(template, prompt)
 
     # If no AI key, return fallback.
     if not settings.openai_api_key:
@@ -894,12 +937,16 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
         return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
 
     try:
+        # AI Generation: Let AI analyze the prompt naturally
+        # If template is provided, it's used as a hint in system prompt, but AI still analyzes the actual prompt
+        # If template is empty, AI analyzes the prompt completely on its own
+        ai_template = template if template.strip() else None
         data = generate_json(
             prompt=prompt,
             system_prompt=_ROBLOX_SYSTEM_PROMPT,
             temperature=float(req.temperature),
             max_tokens=int(req.max_tokens),
-            extra_context={"template": req.template},
+            extra_context={"template": ai_template},  # None/empty = let AI analyze naturally
         )
 
         # Minimal validation + merge safety notes
@@ -935,7 +982,7 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
             # Try one repair pass (AI-only mode).
             repaired = _repair_pack_once(
                 prompt=prompt,
-                template=req.template,
+                template=template,
                 reason="Broken pack heuristics matched (client/server placement).",
                 candidate=data,
             )
@@ -954,13 +1001,13 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
                 else:
                     if require_ai:
                         # One more retry for seasonal_collector: regenerate as MVP from scratch (not repair).
-                        if str(req.template).strip().lower() == "seasonal_collector":
+                        if str(template).strip().lower() == "seasonal_collector":
                             retry = generate_json(
                                 prompt=_seasonal_mvp_prompt(prompt),
                                 system_prompt=_ROBLOX_SYSTEM_PROMPT,
                                 temperature=0.15,
                                 max_tokens=max(1400, int(req.max_tokens)),
-                                extra_context={"template": req.template, "retry": "mvp_regen_from_scratch"},
+                                extra_context={"template": template, "retry": "mvp_regen_from_scratch"},
                             )
                             files3 = retry.get("files")
                             if isinstance(files3, list):
@@ -985,13 +1032,13 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
                     return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
             else:
                 if require_ai:
-                    if str(req.template).strip().lower() == "seasonal_collector":
+                    if str(template).strip().lower() == "seasonal_collector":
                         retry = generate_json(
                             prompt=_seasonal_mvp_prompt(prompt),
                             system_prompt=_ROBLOX_SYSTEM_PROMPT,
                             temperature=0.15,
                             max_tokens=max(1400, int(req.max_tokens)),
-                            extra_context={"template": req.template, "retry": "mvp_regen_from_scratch"},
+                            extra_context={"template": template, "retry": "mvp_regen_from_scratch"},
                         )
                         files3 = retry.get("files")
                         if isinstance(files3, list):
