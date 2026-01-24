@@ -27,7 +27,7 @@ class AIChatResponse(BaseModel):
 class RobloxGenerateRequest(BaseModel):
     prompt: str
     template: str = "coin_collector"
-    require_ai: bool = True
+    require_ai: Optional[bool] = None  # None = use REQUIRE_AI env var; frontend doesn't send this
     temperature: float = 0.2
     max_tokens: int = 1400
 
@@ -58,7 +58,7 @@ class RobloxRegenerateRequest(BaseModel):
     change_request: str
     template: str = "coin_collector"
     session_id: Optional[str] = None
-    require_ai: bool = True
+    require_ai: Optional[bool] = None  # None = use REQUIRE_AI env var
     base_title: str = ""
     base_description: str = ""
     base_files: List[RobloxFile] = Field(default_factory=list)

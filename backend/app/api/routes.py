@@ -982,7 +982,9 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt is required")
 
-    require_ai = bool(req.require_ai) or bool(settings.require_ai)
+    # Use REQUIRE_AI env var when frontend doesn't send require_ai (default). Fixes 502 despite REQUIRE_AI=false.
+    require_ai = bool(req.require_ai) if req.require_ai is not None else bool(settings.require_ai)
+    print(f"require_ai: {require_ai} (from request: {req.require_ai}, env: {settings.require_ai})")
 
     # Template handling:
     # - If explicitly provided by user → Use it (user wants specific template behavior)
@@ -1256,7 +1258,8 @@ def roblox_regenerate(req: RobloxRegenerateRequest, user: Dict[str, Any] = Depen
     if not change:
         raise HTTPException(status_code=400, detail="change_request is required")
 
-    require_ai = bool(req.require_ai) or bool(settings.require_ai)
+    # Use REQUIRE_AI env var when frontend doesn't send require_ai (default). Fixes 502 despite REQUIRE_AI=false.
+    require_ai = bool(req.require_ai) if req.require_ai is not None else bool(settings.require_ai)
 
     # Prefer session-based regen to avoid sending huge file packs over the network.
     base_pack_from_session = None
