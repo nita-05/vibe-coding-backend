@@ -997,11 +997,25 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
 
     # If no AI key, return fallback.
     if not settings.openai_api_key:
+        print("WARNING: OPENAI_API_KEY is not configured in deployment environment")
         if require_ai:
-            raise HTTPException(status_code=503, detail="AI is required but OPENAI_API_KEY is not configured.")
+            raise HTTPException(status_code=503, detail="AI is required but OPENAI_API_KEY is not configured. Please set OPENAI_API_KEY in your deployment environment variables.")
         fallback["notes"] = list(fallback.get("notes") or []) + ["AI: OFF (no OPENAI_API_KEY configured)"]
         sid = session_store.create(fallback)
         return RobloxGenerateResponse(success=True, session_id=sid, **fallback)
+    
+    # Log API key status (first few chars only for security)
+    api_key_preview = settings.openai_api_key[:10] + "..." if settings.openai_api_key and len(settings.openai_api_key) > 10 else "NOT SET"
+    print(f"Using OpenAI model: {settings.openai_model}, API Key: {api_key_preview}")
+    
+    # Quick validation: Check if API key format is valid
+    if settings.openai_api_key and not settings.openai_api_key.startswith("sk-"):
+        print("WARNING: API key doesn't start with 'sk-' - might be invalid format")
+        if require_ai:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI API key format appears invalid. Please check your OPENAI_API_KEY in deployment settings."
+            )
 
     try:
         # AI Generation: Let AI analyze the prompt naturally
@@ -1214,8 +1228,8 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
             error_detail = "AI request timed out. Custom prompts can take longer. Please try: 1) Simplifying your prompt, 2) Breaking it into smaller requests, or 3) Try again (sometimes it works on retry)."
         elif "rate limit" in error_msg.lower() or "429" in error_msg.lower():
             error_detail = "AI rate limit exceeded. Please wait a moment and try again."
-        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower() or "401" in error_msg.lower() or "403" in error_msg.lower():
-            error_detail = "AI API key issue. Please check your OpenAI API key configuration in deployment settings."
+        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower() or "401" in error_msg.lower() or "403" in error_msg.lower() or "incorrect api key" in error_msg.lower() or "invalid api key" in error_msg.lower():
+            error_detail = "OpenAI API key is invalid or expired. Please check your OPENAI_API_KEY in deployment settings. Generate a new key at https://platform.openai.com/api-keys if needed."
         elif "json" in error_msg.lower() or "JSONDecodeError" in error_type:
             error_detail = "AI returned invalid response format. Please try again or simplify your prompt."
         elif "502" in error_msg.lower() or "Bad Gateway" in error_msg:
@@ -1224,6 +1238,9 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
             error_detail = f"AI generation error: {error_msg[:200]}"
         
         if require_ai:
+            # Add helpful note about REQUIRE_AI setting
+            if "OPENAI_API_KEY" not in error_detail and "api key" not in error_detail.lower():
+                error_detail += " (Tip: Set REQUIRE_AI=false in deployment env vars to enable fallback to templates)"
             raise HTTPException(status_code=502, detail=error_detail)
         sid = session_store.create(fallback)
         fallback["notes"] = list(fallback.get("notes") or []) + [f"AI: ERROR ({error_detail[:50]}) → fallback used"]

@@ -110,7 +110,14 @@ def generate_json(
     except HTTPException:
         raise
     except Exception as e:  # pragma: no cover
-        raise HTTPException(status_code=502, detail=f"Upstream AI error: {e}")
+        # Log the actual error for debugging
+        import traceback
+        error_detail = str(e)
+        error_type = type(e).__name__
+        print(f"ERROR in generate_json [{error_type}]: {error_detail}")
+        print(f"Traceback: {traceback.format_exc()}")
+        print(f"Model: {settings.openai_model}, API Key set: {bool(settings.openai_api_key)}")
+        raise HTTPException(status_code=502, detail=f"Upstream AI error: {error_detail}")
 
     # Parse JSON
     try:
