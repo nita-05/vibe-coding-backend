@@ -112,6 +112,19 @@ export const generateRobloxGame = async (request: {
   return response.data;
 };
 
+export const regenerateRobloxGame = async (request: {
+  prompt: string;
+  template: string;
+  change_request: string;
+  session_id?: string | null;
+  base_title?: string;
+  base_description?: string;
+  base_files?: Array<{ path: string; content: string }>;
+}): Promise<RobloxGenerateResponse> => {
+  const response = await api.post<RobloxGenerateResponse>('/api/roblox/regenerate', request);
+  return response.data;
+};
+
 export interface RobloxPublishResponse {
   success: boolean;
   place_id?: string;

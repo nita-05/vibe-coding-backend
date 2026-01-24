@@ -7,7 +7,7 @@ import UserProfile from './UserProfile';
 import SearchPanel, { SearchResult } from './SearchPanel';
 import AIPanel from './AIPanel';
 import SettingsModal from './SettingsModal';
-import { Bot, FolderOpen, Menu, Search, Settings, Save, Sparkles, X, LayoutGrid, AlignLeft, FileX } from 'lucide-react';
+import { Bot, FolderOpen, Menu, Search, Settings, Save, Sparkles, RefreshCw, X, LayoutGrid, AlignLeft, FileX } from 'lucide-react';
 
 let _luaToolsRegistered = false;
 
@@ -97,6 +97,11 @@ interface IDELayoutProps {
   onFileRename?: (oldPath: string, newPath: string) => void;
   onFileDelete?: (path: string) => void;
   onFolderCreate?: (path: string) => void;
+  refineConfig?: {
+    onRegenerate: (changeRequest: string) => void;
+    isRegenerating: boolean;
+    placeholder?: string;
+  };
 }
 
 export default function IDELayout({
@@ -110,6 +115,7 @@ export default function IDELayout({
   onFileRename,
   onFileDelete,
   onFolderCreate,
+  refineConfig,
 }: IDELayoutProps) {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -133,6 +139,7 @@ export default function IDELayout({
     const saved = localStorage.getItem('vibe_editor_tab_size');
     return saved ? parseInt(saved, 10) : 4;
   });
+  const [refineInput, setRefineInput] = useState('');
   const editorRef = useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null);
   const secondaryEditorRef = useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<any>(null);
@@ -535,6 +542,43 @@ export default function IDELayout({
           <UserProfile onOpenSettings={() => setShowSettings(true)} />
         </div>
       </div>
+
+      {/* Refine bar: add coins, add score, etc. (works for predefined templates too) */}
+      {refineConfig && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-[#252526] border-b border-[#3e3e42]">
+          <label className="text-xs text-[#858585] shrink-0">Refine:</label>
+          <input
+            type="text"
+            value={refineInput}
+            onChange={(e) => setRefineInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                refineConfig.onRegenerate(refineInput);
+                setRefineInput('');
+              }
+            }}
+            placeholder={refineConfig.placeholder || 'e.g. add coins, add score'}
+            className="flex-1 min-w-0 px-3 py-1.5 text-sm bg-[#1e1e1e] border border-[#3e3e42] rounded text-[#cccccc] placeholder-[#858585] focus:outline-none focus:border-[#007acc]"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              refineConfig.onRegenerate(refineInput);
+              setRefineInput('');
+            }}
+            disabled={!refineInput.trim() || refineConfig.isRegenerating}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#0e639c] hover:bg-[#1177bb] disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors shrink-0"
+          >
+            {refineConfig.isRegenerating ? (
+              <span className="animate-spin">⟳</span>
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Regenerate</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">

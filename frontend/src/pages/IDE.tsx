@@ -3,7 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import IDELayout from '../components/IDE/IDELayout';
 import PromptPanel from '../components/IDE/PromptPanel';
 import ProjectManagerModal from '../components/IDE/ProjectManagerModal';
-import { generateRobloxGame, getProject, replaceProject, saveProject, getMe, type ProjectInfo } from '../services/api';
+import { generateRobloxGame, regenerateRobloxGame, getProject, replaceProject, saveProject, getMe, type ProjectInfo } from '../services/api';
 
 interface File {
   path: string;
@@ -17,6 +17,9 @@ export default function IDE() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string>('My Project');
   const [skipAutoLoad, setSkipAutoLoad] = useState(false); // Flag to prevent auto-load after "New"
+  const [lastPrompt, setLastPrompt] = useState<string>('');
+  const [lastTemplate, setLastTemplate] = useState<string>('');
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Check auth status to ensure user profile loads
@@ -46,29 +49,26 @@ export default function IDE() {
 
   const generateMutation = useMutation({
     mutationFn: (request: { prompt: string; template: string }) => generateRobloxGame(request),
-    onMutate: () => {
-      // CRITICAL: Clear ALL existing files BEFORE generating new ones
-      // This ensures new generation REPLACES everything, not merges
+    onMutate: (vars) => {
+      setLastPrompt(vars.prompt);
+      setLastTemplate(vars.template || '');
+      setLastSessionId(null);
       setFiles([]);
       localStorage.removeItem('vibe_project_files');
-      // Clear AI chat history when generating new game - prevent merging with previous games
       localStorage.removeItem('vibe_ai_chat');
-      // Clear project ID since we're generating a new game
+      sessionStorage.removeItem('vibe_ai_project_hash');
       setCurrentProjectId(null);
       setCurrentProjectName('My Project');
     },
     onSuccess: (data) => {
-      // Convert response to file array
+      if (data.session_id) setLastSessionId(data.session_id);
       if (data.files && Array.isArray(data.files)) {
         const newFiles: File[] = data.files.map((f: any) => ({
           path: f.path || '',
           content: f.content || '',
         }));
-        // REPLACE all files with new generation (not merge)
         setFiles(newFiles);
-        // Update localStorage with new files
         localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
-        // Clear the "cleared by user" flag when generating new files
         sessionStorage.removeItem('vibe_cleared_by_user');
       }
     },
@@ -78,12 +78,39 @@ export default function IDE() {
     },
   });
 
+  const regenerateMutation = useMutation({
+    mutationFn: (req: { prompt: string; template: string; change_request: string; session_id: string | null; base_files: File[] }) =>
+      regenerateRobloxGame({
+        prompt: req.prompt,
+        template: req.template,
+        change_request: req.change_request,
+        session_id: req.session_id || undefined,
+        base_title: 'Roblox Pack',
+        base_description: '',
+        base_files: req.base_files,
+      }),
+    onSuccess: (data) => {
+      if (data.session_id) setLastSessionId(data.session_id);
+      if (data.files && Array.isArray(data.files)) {
+        const newFiles: File[] = data.files.map((f: any) => ({
+          path: f.path || '',
+          content: f.content || '',
+        }));
+        setFiles(newFiles);
+        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+      }
+    },
+    onError: (error: any) => {
+      console.error('Regeneration error:', error);
+      alert(`Failed to regenerate: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
   const handleFileChange = (path: string, content: string) => {
     setFiles(prev => {
       const newFiles = prev.map(file =>
         file.path === path ? { ...file, content } : file
       );
-      // Auto-save to localStorage when files change
       localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
       return newFiles;
     });
@@ -165,8 +192,10 @@ export default function IDE() {
       // Clear current project state
       setCurrentProjectId(null);
       setCurrentProjectName('My Project');
+      setLastPrompt('');
+      setLastTemplate('');
+      setLastSessionId(null);
       
-      // Clear any saved project data
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     }
   };
@@ -230,21 +259,27 @@ export default function IDE() {
       alert('Please enter a prompt first');
       return;
     }
-
-    // CRITICAL: Clear all files immediately when user clicks Generate
-    // This ensures the new generation starts from a clean slate
-    setFiles([]);
-    localStorage.removeItem('vibe_project_files');
-    // Clear AI chat history - prevent AI from using previous game context
-    localStorage.removeItem('vibe_ai_chat');
-    // Clear project hash so AI Panel knows it's a new project
-    sessionStorage.removeItem('vibe_ai_project_hash');
-    setCurrentProjectId(null);
-    setCurrentProjectName('My Project');
-
     generateMutation.mutate({
       prompt: promptText,
-      template: template || '', // Use selected template or empty string for custom
+      template: template || '',
+    });
+  };
+
+  const handleRegenerate = (changeRequest: string) => {
+    if (!changeRequest.trim()) {
+      alert('Please enter a change request (e.g. add coins, add score)');
+      return;
+    }
+    if (!lastPrompt.trim()) {
+      alert('No previous prompt. Generate a game first, then refine.');
+      return;
+    }
+    regenerateMutation.mutate({
+      prompt: lastPrompt,
+      template: lastTemplate || '',
+      change_request: changeRequest.trim(),
+      session_id: lastSessionId,
+      base_files: files,
     });
   };
 
@@ -322,6 +357,15 @@ export default function IDE() {
         onFileRename={handleFileRename}
         onFileDelete={handleFileDelete}
         onFolderCreate={handleFolderCreate}
+        refineConfig={
+          files.length > 0 && (lastPrompt || lastSessionId)
+            ? {
+                onRegenerate: handleRegenerate,
+                isRegenerating: regenerateMutation.isPending,
+                placeholder: 'e.g. add coins, add score, make obstacles slower',
+              }
+            : undefined
+        }
       />
       <ProjectManagerModal
         isOpen={showProjects}
