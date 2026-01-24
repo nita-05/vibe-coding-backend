@@ -16,8 +16,9 @@ def _client() -> OpenAI:
             detail="OPENAI_API_KEY not configured on server.",
         )
     # Deployment-friendly defaults: bounded latency + small retry budget.
-    # Increased timeout for complex game generation (60 seconds)
-    return OpenAI(api_key=settings.openai_api_key, timeout=60.0, max_retries=2)
+    # Timeout set to 45 seconds to stay under most deployment platform limits (30-60s)
+    # For complex custom prompts, this should be sufficient
+    return OpenAI(api_key=settings.openai_api_key, timeout=45.0, max_retries=2)
 
 
 def chat(*, messages: List[Dict[str, str]], system_prompt: str, temperature: float, max_tokens: int) -> str:

@@ -1202,18 +1202,24 @@ def roblox_generate(req: RobloxGenerateRequest, user: Dict[str, Any] = Depends(g
         # Catch any other exceptions (API errors, timeouts, parsing errors, etc.)
         import traceback
         error_msg = str(e)
-        print(f"ERROR in roblox_generate: {error_msg}")
-        print(f"Traceback: {traceback.format_exc()}")
+        error_type = type(e).__name__
         
-        # Provide helpful error messages
-        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-            error_detail = "AI request timed out. The prompt may be too complex. Please try a simpler prompt or try again."
+        # Log full error for debugging (especially important in deployment)
+        print(f"ERROR in roblox_generate [{error_type}]: {error_msg}")
+        print(f"Traceback: {traceback.format_exc()}")
+        print(f"Prompt length: {len(prompt)}, Template: {template or 'none'}")
+        
+        # Provide helpful error messages based on error type
+        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower() or "timeout" in error_type.lower():
+            error_detail = "AI request timed out. Custom prompts can take longer. Please try: 1) Simplifying your prompt, 2) Breaking it into smaller requests, or 3) Try again (sometimes it works on retry)."
         elif "rate limit" in error_msg.lower() or "429" in error_msg.lower():
             error_detail = "AI rate limit exceeded. Please wait a moment and try again."
-        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower():
-            error_detail = "AI API key issue. Please check your OpenAI API key configuration."
-        elif "json" in error_msg.lower():
+        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower() or "401" in error_msg.lower() or "403" in error_msg.lower():
+            error_detail = "AI API key issue. Please check your OpenAI API key configuration in deployment settings."
+        elif "json" in error_msg.lower() or "JSONDecodeError" in error_type:
             error_detail = "AI returned invalid response format. Please try again or simplify your prompt."
+        elif "502" in error_msg.lower() or "Bad Gateway" in error_msg:
+            error_detail = "Deployment timeout or upstream service issue. The request took too long. Please try a simpler prompt or contact support."
         else:
             error_detail = f"AI generation error: {error_msg[:200]}"
         
