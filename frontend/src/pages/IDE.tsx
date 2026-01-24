@@ -225,7 +225,7 @@ export default function IDE() {
     }
   };
 
-  const handleGenerate = (promptText: string) => {
+  const handleGenerate = (promptText: string, template?: string) => {
     if (!promptText.trim()) {
       alert('Please enter a prompt first');
       return;
@@ -244,7 +244,7 @@ export default function IDE() {
 
     generateMutation.mutate({
       prompt: promptText,
-      template: '', // Let AI analyze the prompt naturally
+      template: template || '', // Use selected template or empty string for custom
     });
   };
 
