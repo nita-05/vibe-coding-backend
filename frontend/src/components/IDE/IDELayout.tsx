@@ -7,7 +7,7 @@ import UserProfile from './UserProfile';
 import SearchPanel, { SearchResult } from './SearchPanel';
 import AIPanel from './AIPanel';
 import SettingsModal from './SettingsModal';
-import { Bot, FolderOpen, Menu, Search, Settings, Save, Sparkles, RefreshCw, X, LayoutGrid, AlignLeft, FileX } from 'lucide-react';
+import { Bot, FolderOpen, Menu, Search, Settings, Save, Sparkles, RefreshCw, X, LayoutGrid, AlignLeft, FileX, Share2, Loader2 } from 'lucide-react';
 
 let _luaToolsRegistered = false;
 
@@ -102,6 +102,7 @@ interface IDELayoutProps {
     isRegenerating: boolean;
     placeholder?: string;
   };
+  isGenerating?: boolean;
 }
 
 export default function IDELayout({
@@ -116,7 +117,9 @@ export default function IDELayout({
   onFileDelete,
   onFolderCreate,
   refineConfig,
+  isGenerating = false,
 }: IDELayoutProps) {
+  const [shareCopied, setShareCopied] = useState(false);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
@@ -497,10 +500,26 @@ export default function IDELayout({
           </button>
           <button
             onClick={onGenerate}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[#007acc] hover:bg-[#0066aa] rounded transition-colors"
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-[#007acc] hover:bg-[#0066aa] rounded transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+            title={isGenerating ? 'Generating your game...' : 'Generate game from prompt'}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Generate</span>
+            {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isGenerating ? 'Generating...' : 'Generate'}</span>
+          </button>
+          <button
+            onClick={() => {
+              const url = window.location.origin;
+              navigator.clipboard.writeText(url).then(() => {
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              });
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[#3e3e42] rounded transition-colors"
+            title="Copy app link to share (Twitter, Discord, Reddit)"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{shareCopied ? 'Copied!' : 'Share'}</span>
           </button>
         </div>
         <div className="flex items-center gap-2">

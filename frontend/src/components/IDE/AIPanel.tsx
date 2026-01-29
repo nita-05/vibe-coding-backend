@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Bot, CornerDownLeft, Wand2 } from 'lucide-react';
-import { aiChat, AIChatMessage, AIChatRole } from '../../services/api';
+import { aiChat, AIChatMessage, AIChatRole, getMe } from '../../services/api';
 
-  type Action = 'chat' | 'explain' | 'fix' | 'insert' | 'replace';
+type Action = 'chat' | 'explain' | 'fix' | 'insert' | 'replace';
+
+function aiChatKey(userId: string | null | undefined) {
+  return userId ? `vibe_ai_chat_${userId}` : 'vibe_ai_chat';
+}
+function aiProjectHashKey(userId: string | null | undefined) {
+  return userId ? `vibe_ai_project_hash_${userId}` : 'vibe_ai_project_hash';
+}
 
 export default function AIPanel({
   isOpen,
@@ -27,17 +35,26 @@ export default function AIPanel({
   onFileChange?: (path: string, content: string) => void;
   allFiles?: Array<{ path: string; content: string }>;
 }) {
-  const [messages, setMessages] = useState<AIChatMessage[]>(() => {
-    const raw = localStorage.getItem('vibe_ai_chat');
-    if (!raw) return [];
+  const meQuery = useQuery({ queryKey: ['me'], queryFn: getMe, retry: false });
+  const userId = meQuery.data?.authenticated ? meQuery.data.user?.id ?? null : null;
+
+  const [messages, setMessages] = useState<AIChatMessage[]>([]);
+
+  // Load AI chat history for current user (per-account so it persists across logout/login)
+  useEffect(() => {
+    const key = aiChatKey(userId);
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      setMessages([]);
+      return;
+    }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) setMessages(parsed);
     } catch {
-      // ignore
+      setMessages([]);
     }
-    return [];
-  });
+  }, [userId]);
 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
@@ -61,35 +78,33 @@ export default function AIPanel({
     };
   }, []);
 
+  // Persist chat history; never overwrite with [] so load-from-storage isn't wiped by stale state when userId changes
   useEffect(() => {
-    localStorage.setItem('vibe_ai_chat', JSON.stringify(messages.slice(-60)));
-  }, [messages]);
+    if (messages.length === 0) return;
+    const key = aiChatKey(userId);
+    localStorage.setItem(key, JSON.stringify(messages.slice(-60)));
+  }, [messages, userId]);
 
-  // CRITICAL: Check if project changed when panel opens or files change - clear old messages immediately
+  // Only clear chat when project actually changed (had a previous hash and it's different). Don't clear on first load/login (lastProjectHash empty).
   useEffect(() => {
     if (!isOpen || !allFiles || allFiles.length === 0) return;
-    
-    // Calculate current project hash
+
     const currentProjectHash = allFiles.length > 0
       ? allFiles.map(f => `${f.path}:${f.content.substring(0, 100).length}`).sort().join('|')
       : '';
-    
-    const lastProjectHash = sessionStorage.getItem('vibe_ai_project_hash');
-    
-    // If project changed (new game generated), clear messages immediately
-    if (currentProjectHash && currentProjectHash !== lastProjectHash) {
-      // New project detected - clear messages and localStorage
+    const hashKey = aiProjectHashKey(userId);
+    const lastProjectHash = sessionStorage.getItem(hashKey);
+
+    if (currentProjectHash && lastProjectHash !== null && lastProjectHash !== '' && currentProjectHash !== lastProjectHash) {
       setMessages([]);
-      localStorage.removeItem('vibe_ai_chat');
-      sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+      localStorage.removeItem(aiChatKey(userId));
+      sessionStorage.setItem(hashKey, currentProjectHash);
     } else if (!currentProjectHash) {
-      // No files - clear everything
-      sessionStorage.removeItem('vibe_ai_project_hash');
+      sessionStorage.removeItem(hashKey);
     } else {
-      // Same project - update hash if not set
-      sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+      sessionStorage.setItem(hashKey, currentProjectHash);
     }
-  }, [isOpen, allFiles]);
+  }, [isOpen, allFiles, userId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -143,33 +158,28 @@ export default function AIPanel({
     try {
       // Build conversation history for AI - CRITICAL: Prevent merging with previous games
       // Check if project changed - if files changed significantly, clear old context
-      const currentProjectHash = allFiles && allFiles.length > 0 ? 
+      const currentProjectHash = allFiles && allFiles.length > 0 ?
         allFiles.map(f => `${f.path}:${f.content.substring(0, 100).length}`).sort().join('|') : '';
-      const lastProjectHash = sessionStorage.getItem('vibe_ai_project_hash');
-      
+      const hashKey = aiProjectHashKey(userId);
+      const lastProjectHash = sessionStorage.getItem(hashKey);
+
       let conversationHistory: AIChatMessage[];
-      
-      // If project structure changed significantly (new game generated), start fresh
+
       if (currentProjectHash && currentProjectHash !== lastProjectHash) {
-        // New project detected - clear old messages and start fresh
         conversationHistory = [{ role: 'user' as AIChatRole, content: fullUser }];
-        sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
-        // Clear localStorage messages for new project immediately
+        sessionStorage.setItem(hashKey, currentProjectHash);
         const emptyMessages: AIChatMessage[] = [];
         setMessages(emptyMessages);
-        localStorage.removeItem('vibe_ai_chat');
+        localStorage.removeItem(aiChatKey(userId));
       } else if (!currentProjectHash || allFiles?.length === 0) {
-        // No files or empty project - start fresh
         conversationHistory = [{ role: 'user' as AIChatRole, content: fullUser }];
-        // Clear project hash if no files
-        sessionStorage.removeItem('vibe_ai_project_hash');
+        sessionStorage.removeItem(hashKey);
       } else {
-        // Same project - use ONLY recent messages (last 6 messages = 3 exchanges) to avoid old game context
         conversationHistory = [
-          ...messages.slice(-6), // Only last 3 exchanges to prevent merging with previous games
-          { role: 'user' as AIChatRole, content: fullUser }, // Current message with full context
+          ...messages.slice(-6),
+          { role: 'user' as AIChatRole, content: fullUser },
         ];
-        sessionStorage.setItem('vibe_ai_project_hash', currentProjectHash);
+        sessionStorage.setItem(hashKey, currentProjectHash);
       }
 
       // Get AI temperature from settings (default 0.4)

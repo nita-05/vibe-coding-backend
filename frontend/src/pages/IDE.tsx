@@ -5,6 +5,14 @@ import PromptPanel from '../components/IDE/PromptPanel';
 import ProjectManagerModal from '../components/IDE/ProjectManagerModal';
 import { generateRobloxGame, regenerateRobloxGame, getProject, replaceProject, saveProject, getMe, type ProjectInfo } from '../services/api';
 
+/** Storage keys scoped by user so project/AI history persist per account across logout/login */
+function projectFilesKey(userId: string | null | undefined) {
+  return userId ? `vibe_project_files_${userId}` : 'vibe_project_files';
+}
+function lastProjectIdKey(userId: string | null | undefined) {
+  return userId ? `vibe_last_project_id_${userId}` : 'vibe_last_project_id';
+}
+
 interface File {
   path: string;
   content: string;
@@ -22,12 +30,12 @@ export default function IDE() {
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Check auth status to ensure user profile loads
-  useQuery({
+  const meQuery = useQuery({
     queryKey: ['me'],
     queryFn: getMe,
     retry: false,
   });
+  const userId = meQuery.data?.authenticated ? meQuery.data.user?.id ?? null : null;
 
   // Handle OAuth callback redirect
   useEffect(() => {
@@ -54,9 +62,9 @@ export default function IDE() {
       setLastTemplate(vars.template || '');
       setLastSessionId(null);
       setFiles([]);
-      localStorage.removeItem('vibe_project_files');
-      localStorage.removeItem('vibe_ai_chat');
-      sessionStorage.removeItem('vibe_ai_project_hash');
+      localStorage.removeItem(projectFilesKey(userId));
+      localStorage.removeItem(userId ? `vibe_ai_chat_${userId}` : 'vibe_ai_chat');
+      sessionStorage.removeItem(userId ? `vibe_ai_project_hash_${userId}` : 'vibe_ai_project_hash');
       setCurrentProjectId(null);
       setCurrentProjectName('My Project');
     },
@@ -68,7 +76,7 @@ export default function IDE() {
           content: f.content || '',
         }));
         setFiles(newFiles);
-        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+        localStorage.setItem(projectFilesKey(userId), JSON.stringify(newFiles));
         sessionStorage.removeItem('vibe_cleared_by_user');
       }
     },
@@ -97,7 +105,7 @@ export default function IDE() {
           content: f.content || '',
         }));
         setFiles(newFiles);
-        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+        localStorage.setItem(projectFilesKey(userId), JSON.stringify(newFiles));
       }
     },
     onError: (error: any) => {
@@ -111,7 +119,7 @@ export default function IDE() {
       const newFiles = prev.map(file =>
         file.path === path ? { ...file, content } : file
       );
-      localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+      localStorage.setItem(projectFilesKey(userId), JSON.stringify(newFiles));
       return newFiles;
     });
   };
@@ -142,14 +150,12 @@ export default function IDE() {
   const handleFileDelete = (path: string) => {
     setFiles(prev => {
       const newFiles = prev.filter(file => file.path !== path);
-      // Update localStorage when files are deleted
+      const key = projectFilesKey(userId);
       if (newFiles.length === 0) {
-        // If all files deleted, clear localStorage
-        localStorage.removeItem('vibe_project_files');
+        localStorage.removeItem(key);
         sessionStorage.setItem('vibe_cleared_by_user', 'true');
       } else {
-        // Update localStorage with remaining files
-        localStorage.setItem('vibe_project_files', JSON.stringify(newFiles));
+        localStorage.setItem(key, JSON.stringify(newFiles));
       }
       return newFiles;
     });
@@ -172,15 +178,12 @@ export default function IDE() {
     );
     
     if (confirmed) {
-      // IMPORTANT: Clear localStorage FIRST to prevent auto-load from restoring
-      localStorage.removeItem('vibe_project_files');
-      localStorage.removeItem('vibe_last_project_id');
-      // Clear AI chat history when starting new project
-      localStorage.removeItem('vibe_ai_chat');
-      // Clear project hash so AI Panel knows it's a new project
-      sessionStorage.removeItem('vibe_ai_project_hash');
-      
-      // Set sessionStorage flag to prevent reload after refresh
+      // Clear current user's storage only (so their project/history persist per account)
+      localStorage.removeItem(projectFilesKey(userId));
+      localStorage.removeItem(lastProjectIdKey(userId));
+      localStorage.removeItem(userId ? `vibe_ai_chat_${userId}` : 'vibe_ai_chat');
+      sessionStorage.removeItem(userId ? `vibe_ai_project_hash_${userId}` : 'vibe_ai_project_hash');
+
       sessionStorage.setItem('vibe_cleared_by_user', 'true');
       
       // Set flag to prevent auto-load from restoring files
@@ -205,7 +208,7 @@ export default function IDE() {
     onSuccess: (project) => {
       alert('Project saved successfully!');
       if (project?.id) {
-        localStorage.setItem('vibe_last_project_id', project.id);
+        localStorage.setItem(lastProjectIdKey(userId), project.id);
         setCurrentProjectId(project.id);
       }
       if (project?.name) setCurrentProjectName(project.name);
@@ -213,8 +216,7 @@ export default function IDE() {
     },
     onError: (error: any) => {
       console.error('Save error:', error);
-      // Fallback to localStorage
-      localStorage.setItem('vibe_project_files', JSON.stringify(files));
+      localStorage.setItem(projectFilesKey(userId), JSON.stringify(files));
       alert('Saved to local storage (backend unavailable)');
     },
   });
@@ -225,7 +227,7 @@ export default function IDE() {
     onSuccess: (project) => {
       alert('Project updated successfully!');
       if (project?.id) {
-        localStorage.setItem('vibe_last_project_id', project.id);
+        localStorage.setItem(lastProjectIdKey(userId), project.id);
         setCurrentProjectId(project.id);
       }
       if (project?.name) setCurrentProjectName(project.name);
@@ -233,7 +235,7 @@ export default function IDE() {
     },
     onError: (error: any) => {
       console.error('Update error:', error);
-      localStorage.setItem('vibe_project_files', JSON.stringify(files));
+      localStorage.setItem(projectFilesKey(userId), JSON.stringify(files));
       alert('Saved to local storage (backend unavailable)');
     },
   });
@@ -248,8 +250,7 @@ export default function IDE() {
         createProjectMutation.mutate(projectName);
       }
     } else {
-      // Quick save to localStorage
-      localStorage.setItem('vibe_project_files', JSON.stringify(files));
+      localStorage.setItem(projectFilesKey(userId), JSON.stringify(files));
       console.log('Project saved to local storage!');
     }
   };
@@ -283,19 +284,18 @@ export default function IDE() {
     });
   };
 
-  // Load saved project on mount (only if not skipped and localStorage exists)
+  // Load saved project when user is known (per-account storage so data persists across logout/login)
   useEffect(() => {
-    // Check if user explicitly cleared localStorage (indicated by special flag)
+    if (userId === undefined) return; // Wait for auth so we use the right key
     const wasCleared = sessionStorage.getItem('vibe_cleared_by_user');
     if (wasCleared) {
       sessionStorage.removeItem('vibe_cleared_by_user');
-      // Don't load from localStorage if user explicitly cleared it
       return;
     }
-    
-    if (skipAutoLoad) return; // Skip if user clicked "New"
-    
-    const saved = localStorage.getItem('vibe_project_files');
+    if (skipAutoLoad) return;
+
+    const key = projectFilesKey(userId);
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -306,35 +306,31 @@ export default function IDE() {
         console.error('Failed to load saved project:', e);
       }
     }
-  }, []); // Only run on mount
+  }, [userId, skipAutoLoad]);
 
-  // Auto-load last used project (best-effort; falls back to localStorage)
+  // Auto-load last used project from API when logged in (per-account)
   useEffect(() => {
-    // Check if user explicitly cleared localStorage
+    if (userId === undefined) return;
     const wasCleared = sessionStorage.getItem('vibe_cleared_by_user');
     if (wasCleared) {
       sessionStorage.removeItem('vibe_cleared_by_user');
-      return; // Don't restore if user cleared
+      return;
     }
-    
-    if (skipAutoLoad) return; // Skip if user clicked "New"
-    
-    const lastId = localStorage.getItem('vibe_last_project_id');
+    if (skipAutoLoad) return;
+
+    const lastIdKey = lastProjectIdKey(userId);
+    const lastId = localStorage.getItem(lastIdKey);
     if (!lastId) return;
-    
+
     (async () => {
       try {
         const proj = await getProject(lastId);
-        
-        // CRITICAL: Check if localStorage was cleared (user clicked "New") before applying
-        if (!localStorage.getItem('vibe_last_project_id')) {
-          return; // User clicked "New" and cleared localStorage, don't restore
-        }
-        
+        if (!localStorage.getItem(lastProjectIdKey(userId))) return;
+
         const nextFiles = (proj.files || []).map((f) => ({ path: f.path, content: f.content }));
         if (nextFiles.length > 0) {
           setFiles(nextFiles);
-          localStorage.setItem('vibe_project_files', JSON.stringify(nextFiles));
+          localStorage.setItem(projectFilesKey(userId), JSON.stringify(nextFiles));
           setCurrentProjectId(proj.id);
           setCurrentProjectName(proj.name || 'My Project');
         }
@@ -342,7 +338,7 @@ export default function IDE() {
         // ignore (not signed in / offline / deleted project)
       }
     })();
-  }, []); // Only run on mount
+  }, [userId, skipAutoLoad]);
 
   return (
     <>
@@ -353,6 +349,7 @@ export default function IDE() {
         onOpenProjects={() => setShowProjects(true)}
         onNewProject={handleNewProject}
         onGenerate={() => setShowPromptPanel(true)}
+        isGenerating={generateMutation.isPending}
         onFileCreate={handleFileCreate}
         onFileRename={handleFileRename}
         onFileDelete={handleFileDelete}
@@ -373,9 +370,8 @@ export default function IDE() {
         onLoadProject={(project: ProjectInfo) => {
           const nextFiles = (project.files || []).map((f) => ({ path: f.path, content: f.content }));
           setFiles(nextFiles);
-          // also keep local backup so refresh still works
-          localStorage.setItem('vibe_project_files', JSON.stringify(nextFiles));
-          localStorage.setItem('vibe_last_project_id', project.id);
+          localStorage.setItem(projectFilesKey(userId), JSON.stringify(nextFiles));
+          localStorage.setItem(lastProjectIdKey(userId), project.id);
           setCurrentProjectId(project.id);
           setCurrentProjectName(project.name || 'My Project');
         }}
