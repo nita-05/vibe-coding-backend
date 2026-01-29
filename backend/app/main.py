@@ -40,19 +40,19 @@ def health():
 _FRONTEND_BUILD_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
 if _FRONTEND_BUILD_DIR.exists():
-    # Serve static files from frontend build
-    app.mount("/static", StaticFiles(directory=str(_FRONTEND_BUILD_DIR)), name="static")
-    
+    _INDEX_FILE = _FRONTEND_BUILD_DIR / "index.html"
+
     @app.get("/{full_path:path}")
     def serve_frontend(full_path: str):
-        # Don't serve API routes as static files
         if full_path.startswith("api/"):
             raise HTTPException(status_code=404)
-        
-        # Serve index.html for all non-API routes (SPA routing)
-        index_file = _FRONTEND_BUILD_DIR / "index.html"
-        if index_file.exists():
-            return FileResponse(str(index_file))
+        # Serve real files from dist (e.g. /assets/index-xxx.js) so the app loads
+        safe_path = Path(full_path).resolve()
+        file_path = (_FRONTEND_BUILD_DIR / full_path).resolve()
+        if full_path and file_path.is_file() and str(file_path).startswith(str(_FRONTEND_BUILD_DIR)):
+            return FileResponse(str(file_path))
+        if _INDEX_FILE.exists():
+            return FileResponse(str(_INDEX_FILE))
         return JSONResponse({"ok": False, "message": "Frontend not built"})
 else:
     # Fallback: API only

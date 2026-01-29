@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Production: same origin when frontend is served by backend (Render). Dev: proxy or localhost.
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
 const api = axios.create({
   baseURL: API_URL,
